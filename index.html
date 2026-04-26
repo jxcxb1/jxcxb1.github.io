@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Games</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0a;
+      color: #fff;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 28px;
+      letter-spacing: 6px;
+      margin-bottom: 8px;
+      color: #00f5ff;
+    }
+    p {
+      font-size: 11px;
+      color: #446688;
+      letter-spacing: 3px;
+      margin-bottom: 48px;
+    }
+    .games {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 900px;
+    }
+    .card {
+      border: 1px solid #1a3a6a;
+      border-radius: 10px;
+      padding: 28px 24px;
+      background: #0d1033;
+      text-decoration: none;
+      color: #fff;
+      transition: border-color 0.2s, transform 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .card:hover {
+      border-color: #00f5ff;
+      transform: translateY(-3px);
+    }
+    .card-title {
+      font-size: 18px;
+      letter-spacing: 4px;
+      color: #00f5ff;
+    }
+    .card-desc {
+      font-size: 11px;
+      color: #6688aa;
+      line-height: 1.6;
+      letter-spacing: 1px;
+    }
+    .card-tag {
+      font-size: 9px;
+      color: #00f5ff;
+      border: 1px solid #1a3a6a;
+      border-radius: 4px;
+      padding: 2px 8px;
+      align-self: flex-start;
+      letter-spacing: 2px;
+    }
+  </style>
+</head>
+<body>
+  <h1>GAMES</h1>
+  <p>// click to play //</p>
+  <div class="games">
+    <a class="card" href="/minesweeper">
+      <div class="card-tag">PUZZLE</div>
+      <div class="card-title">MINESWEEPER</div>
+      <div class="card-desc">15 themes, chiptune music, time bomb mode, lives mode. breach the grid.</div>
+    </a>
+    <a class="card" href="/voxelcraft">
+      <div class="card-tag">3D</div>
+      <div class="card-title">VOXELCRAFT</div>
+      <div class="card-desc">Minecraft-style voxel builder in the browser. Three.js powered.</div>
+    </a>
+    <a class="card" href="/ashen-gate">
+      <div class="card-tag">ACTION</div>
+      <div class="card-title">ASHEN GATE</div>
+      <div class="card-desc">Souls-like with full class system and boss fights.</div>
+    </a>
+  </div>
+</body>
+</html>
