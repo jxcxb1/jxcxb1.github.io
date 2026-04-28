@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wordle</title>
+<style>
+  /* ── Reset ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+  :root {
+    --bg:     #121213;
+    --border: #3a3a3c;
+    --text:   #ffffff;
+    --green:  #538d4e;
+    --yellow: #b59f3b;
+    --dark:   #3a3a3c;
+    --ts: 62px;
+    --tg: 5px;
+    --kh: 58px;
+  }
+ 
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Clear Sans','Helvetica Neue',Arial,sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+ 
+  header {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+  }
+  header h1 {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+  }
+ 
+  /* ── Toasts ── */
+  #toasts {
+    position: fixed;
+    top: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .toast {
+    background: #fff;
+    color: #121213;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    opacity: 0;
+    animation: tIn .15s ease forwards, tOut .3s ease var(--td,1.5s) forwards;
+  }
+  @keyframes tIn  { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes tOut { from{opacity:1} to{opacity:0} }
+ 
+  /* ── Board ── */
+  #board-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 0 12px;
+  }
+  #board {
+    display: grid;
+    grid-template-rows: repeat(6, var(--ts));
+    grid-template-columns: repeat(5, var(--ts));
+    gap: var(--tg);
+  }
+ 
+  /* ── Tiles ── */
+  .tile {
+    width: var(--ts);
+    height: var(--ts);
+    border: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+ 
+  /* pop on letter type */
+  @keyframes pop { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
+  .tile.pop { animation: pop .1s ease; }
+ 
+  /* filled border when letter typed but not submitted */
+  .tile.filled { border-color: #565758; }
+ 
+  /* 3-D flip reveal */
+  @keyframes flip {
+    0%  { transform: rotateX(0deg); }
+    49% { transform: rotateX(-90deg); }
+    50% { transform: rotateX(-90deg); }
+    100%{ transform: rotateX(0deg); }
+  }
+  .tile.flip { animation: flip var(--fd,.5s) ease var(--fd2,0s) forwards; }
+ 
+  /* Color states */
+  .tile[data-s="correct"] { background:var(--green);  border-color:var(--green); }
+  .tile[data-s="present"] { background:var(--yellow); border-color:var(--yellow);}
+  .tile[data-s="absent"]  { background:var(--dark);   border-color:var(--dark);  }
+ 
+  /* invalid word shake */
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    20%,60% {transform:translateX(-5px)}
+    40%,80% {transform:translateX(5px)}
+  }
+  .tile.shake { animation: shake .45s ease; }
+ 
+  /* win bounce */
+  @keyframes bounce {
+    0%,100%{transform:translateY(0)}
+    40%    {transform:translateY(-28px)}
+    70%    {transform:translateY(-12px)}
+  }
+  .tile.bounce { animation: bounce .65s ease var(--bd,0s); }
+ 
+  /* ── Keyboard ── */
+  #keyboard {
+    width: 100%;
+    max-width: 500px;
+    padding: 0 8px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .krow { display:flex; justify-content:center; gap:6px; }
+  .key {
+    height: var(--kh);
+    min-width: 43px; max-width: 43px;
+    flex: 1;
+    border: none;
+    border-radius: 4px;
+    background: #818384;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .2s, color .2s;
+  }
+  .key.wide { min-width:65px; max-width:65px; font-size:12px; }
+  .key:active { filter: brightness(.8); }
+  .key[data-s="correct"] { background:var(--green); color:#fff; }
+  .key[data-s="present"] { background:var(--yellow); color:#fff; }
+  .key[data-s="absent"]  { background:var(--dark); color:#818384; }
+ 
+  /* ── Play Again ── */
+  #again {
+    display: none;
+    margin: 14px 0 0;
+    padding: 14px 36px;
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+  }
+  #again:hover  { background:#6aaa64; }
+  #again:active { transform:scale(.97); }
+ 
+  /* ── Responsive ── */
+  @media (max-height:680px) {
+    :root { --ts:52px; --kh:50px; }
+    header h1 { font-size:22px; }
+  }
+  @media (max-width:390px) {
+    :root { --ts:52px; }
+    .key      { min-width:30px; max-width:30px; font-size:11px; }
+    .key.wide { min-width:48px; max-width:48px; }
+  }
+</style>
+</head>
+<body>
+ 
+<header><h1>Wordle</h1></header>
+<div id="toasts"></div>
+<div id="board-wrap"><div id="board"></div></div>
+<div id="keyboard"></div>
+<button id="again">Play Again</button>
+ 
+<script>
+/* ════════════════════════════════════════════════════════
+   WORD LIST  — plain JS array, 1064 common 5-letter words
+   ════════════════════════════════════════════════════════ */
+const WORDS = [
+  "about","above","abuse","abyss","ached","acorn","acres","acted","actor","adage",
+  "admit","adobe","adult","after","again","agree","ahead","aimed","aired","alarm",
+  "album","alert","align","alike","alive","allay","alley","allow","alloy","aloft",
+  "alone","along","aloof","altar","alter","amber","ample","angel","anger","angle",
+  "angry","ankle","annex","annoy","annul","antic","anvil","apple","apply","apron",
+  "arbor","ardor","argue","arise","armed","aroma","arose","atone","attic","audio",
+  "audit","avail","avoid","awake","aware","awash","awful","bacon","badge","bagel",
+  "baggy","baker","balmy","banjo","barge","baron","basic","basin","basis","baste",
+  "batch","bathe","bayou","beard","beast","beats","below","bench","berth","birch",
+  "bison","black","blade","blame","blank","blaze","bleak","bleed","blend","bless",
+  "blind","blink","bliss","block","blond","bloom","blown","blurt","board","boast",
+  "bonus","booze","bored","botch","bough","bound","boxer","brace","braid","brain",
+  "brake","brave","brawl","bread","break","breed","brick","bride","brief","brine",
+  "bring","brisk","broil","brood","brook","broth","brown","brush","budge","built",
+  "bulge","bumpy","bunny","burly","burnt","burst","cabin","camel","cameo","candy",
+  "cargo","carry","cause","cedar","chair","chalk","champ","chant","chaos","charm",
+  "chase","chasm","cheap","check","cheek","cheer","chess","chewy","chick","chili",
+  "chimp","china","chive","choke","chord","chunk","cinch","civic","civil","claim",
+  "clamp","clank","clash","clasp","class","clean","clear","cleft","click","cliff",
+  "climb","cling","cloak","clock","clone","close","clove","cobra","cocoa","comet",
+  "comic","comma","coral","corps","couch","cough","could","count","coupe","court",
+  "cover","covet","craft","cramp","crane","crash","crave","craze","crazy","creak",
+  "creed","creek","crimp","crisp","cross","croup","crowd","crown","cruel","crumb",
+  "crush","crypt","cubic","curly","curve","cycle","cynic","daddy","daffy","daisy",
+  "dance","dated","daunt","debut","decor","decoy","delta","delve","dense","depot",
+  "derby","deter","dingo","dirge","disco","ditty","dizzy","dodge","dodgy","doggy",
+  "dogma","doing","donor","donut","doted","doubt","dowdy","dowel","dowse","draft",
+  "drain","drama","drape","drawl","dread","dream","drift","drink","drone","droop",
+  "drove","drown","druid","drunk","dryer","duchy","dunce","dusty","duvet","dwarf",
+  "dwell","dwelt","eagle","early","earth","eight","elbow","elder","elfin","elite",
+  "ember","empty","ended","enjoy","enter","entry","envoy","epoch","epoxy","equip",
+  "error","ethos","evade","evoke","exact","exert","exile","exist","expel","extol",
+  "extra","fable","faced","faint","faith","false","fancy","farce","fatal","fatty",
+  "fault","feast","feign","felon","femur","feral","ferry","fetch","fetid","fever",
+  "fiber","fiend","fiery","fifty","fight","final","finch","first","fishy","fixed",
+  "flail","flair","flaky","flame","flank","flare","flask","fleck","flint","flirt",
+  "float","flock","floor","floss","flour","flown","fluff","flunk","flute","flyer",
+  "foamy","focal","foist","folio","folly","foray","forge","forgo","forte","forth",
+  "forum","found","frail","frame","frank","fraud","freak","fresh","friar","frisk",
+  "frond","frost","froth","frown","froze","fugue","fully","funny","furry","fussy",
+  "fuzzy","gassy","gaudy","gauze","gavel","gawky","gecko","geeky","giant","gilds",
+  "girls","girth","gizmo","glare","glaze","gleam","glean","glide","glint","gloat",
+  "gloom","gloss","glove","glyph","gnash","goose","gorge","gouge","gourd","gouty",
+  "grace","grade","grain","grasp","grate","gravy","graze","great","greed","greet",
+  "grief","grill","grimy","grind","gripe","groan","groin","grope","grout","grove",
+  "growl","gruel","grunt","guard","guess","guide","guild","guile","guise","gulch",
+  "gully","gusto","gutsy","habit","hairy","hammy","handy","hanky","hardy","harsh",
+  "haste","hasty","hatch","haunt","haven","havoc","heady","hedge","hefty","heist",
+  "hence","herbs","herby","hippo","holly","homer","honey","honor","hotel","hound",
+  "house","hovel","howdy","huffy","hulky","human","humid","humus","husky","hyena",
+  "ideal","imply","inane","inept","inert","infer","ingot","inner","input","ionic",
+  "irate","irony","itchy","ivory","jaunt","jazzy","jelly","jetty","jewel","joint",
+  "jolly","joust","judge","jumbo","jumpy","kayak","kebab","ketch","knack","knave",
+  "kneel","knelt","knife","knots","label","lance","lanky","lapel","large","larva",
+  "laser","latch","later","latte","leafy","leapt","leery","legal","lemon","level",
+  "libel","light","limbo","linen","liner","lingo","liver","local","lodge","lofty",
+  "logic","loony","loose","lousy","lowly","lucid","lucky","lumpy","lusty","lying",
+  "lyric","magic","major","maker","mangy","manor","maple","march","marry","marsh",
+  "match","matte","mayor","mealy","medal","melee","mercy","merge","messy","metal",
+  "might","mimic","minor","minty","minus","mirth","mixed","model","moist","money",
+  "moody","moral","motif","mount","mourn","mouth","moved","mucky","muddy","muggy",
+  "mulch","murky","mushy","musty","naive","nasty","naval","nerve","nifty","night",
+  "nippy","nitty","noble","noise","north","notch","noted","novel","nymph","ocean",
+  "offer","often","olive","other","otter","ought","outer","owner","ozone","paint",
+  "panic","pansy","paper","patch","patsy","pause","pawky","payee","peach","peaky",
+  "pearl","pedal","penny","petal","phase","piano","picky","pinch","piney","pithy",
+  "place","plain","plait","plane","plank","plant","plaza","plead","pluck","plumb",
+  "plump","plunk","plush","podgy","point","poker","polar","poppy","porch","potty",
+  "pound","pouty","power","prank","press","price","pride","prime","primp","prior",
+  "privy","probe","prong","prose","proud","proxy","prune","psalm","pudgy","puffy",
+  "pulpy","purse","pushy","quake","queen","quell","query","quest","queue","quick",
+  "quiet","quill","quirk","quota","quote","radar","radio","rainy","raise","rally",
+  "ranch","range","rapid","ratty","raven","reach","realm","rebel","reedy","reign",
+  "relax","relic","repay","repel","resin","retro","revue","rider","rigor","risky",
+  "ritzy","rival","river","robin","rocky","rogue","rouge","rough","round","rowdy",
+  "royal","rugby","ruler","runty","rusty","sadly","sandy","sassy","sauce","saucy",
+  "sauna","savvy","scald","scale","scaly","scamp","scant","scare","scary","scene",
+  "scent","scone","scoop","scope","score","scout","scowl","scrap","screw","scrub",
+  "seedy","seize","sense","serum","serve","setup","shade","shady","shaft","shake",
+  "shaky","shale","shame","shark","sharp","sheen","shelf","shell","shift","shine",
+  "shiny","shirt","shock","shook","shore","short","shout","shred","shrew","siege",
+  "sigma","sinew","siren","sixth","sixty","skiff","skill","skimp","skirt","skull",
+  "skunk","slack","slant","slash","sleek","sleet","slick","slide","slime","slimy",
+  "slope","sloth","slump","smack","small","smart","smash","smear","smell","smite",
+  "smock","smoke","snack","snake","snare","sneak","sniff","snore","soggy","solar",
+  "solid","solve","sooty","soppy","sorry","sound","south","space","spank","spare",
+  "spark","spawn","speak","speed","spend","spice","spike","spine","splay","spoil",
+  "spore","spout","spray","spree","sprig","spunk","squad","squat","stagy","staid",
+  "stain","stale","stall","stamp","staph","stark","start","state","steak","steal",
+  "steam","steel","steep","steer","stern","stick","stiff","still","sting","stock",
+  "stoic","stomp","stony","stood","storm","story","stout","stray","strip","strut",
+  "stung","stunt","style","suave","sulky","sunny","surge","swamp","swarm","swear",
+  "sweat","swept","swift","swill","swine","swing","swipe","swoop","syrup","tabby",
+  "taboo","tacky","talon","tango","tangy","tardy","tatty","taunt","tawny","tease",
+  "techy","tempo","tense","tepid","terms","terse","testy","thick","thief","thorn",
+  "three","throw","timid","tipsy","tired","toast","token","topaz","torch","total",
+  "tough","track","trail","tramp","trash","tread","treat","trend","trial","trick",
+  "troop","trout","trove","truce","truly","trump","trunk","tryst","tulip","tumor",
+  "tuner","tweak","twice","twirl","twist","udder","ulcer","umbra","uncle","under",
+  "unfit","union","unity","until","upper","upset","usher","utter","vague","valid",
+  "valor","valve","vapid","vapor","vault","vaunt","veiny","venom","verge","vexed",
+  "vigor","viral","virus","visor","vivid","vogue","vouch","vowel","wacky","waddy",
+  "wafer","waist","waltz","warty","waste","watch","weary","weave","wedge","weird",
+  "whack","whale","wheat","where","whiff","while","whirl","wield","wimpy","windy",
+  "wispy","witch","witty","wooly","woozy","wordy","world","wormy","worse","worst",
+  "worth","wrath","wring","wrote","yacht","yearn","yield","young","yours","yummy",
+  "zappy","zebra","zesty","zippy"
+];
+const WORD_SET = new Set(WORDS);
+ 
+/* ════════════════════════════════════════════════════════
+   GAME STATE
+   ════════════════════════════════════════════════════════ */
+let answer, curRow, curCol, over;
+let tiles = [], keyEls = {};
+ 
+function init() {
+  answer = WORDS[Math.floor(Math.random() * WORDS.length)];
+  curRow = curCol = 0;
+  over = false;
+  tiles = [];
+  keyEls = {};
+  buildBoard();
+  buildKB();
+  document.getElementById('again').style.display = 'none';
+}
+ 
+/* ════════════════════════════════════════════════════════
+   BUILD BOARD  (6 rows × 5 columns of tile divs)
+   ════════════════════════════════════════════════════════ */
+function buildBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  for (let r = 0; r < 6; r++) {
+    const row = [];
+    for (let c = 0; c < 5; c++) {
+      const t = document.createElement('div');
+      t.className = 'tile';
+      board.appendChild(t);
+      row.push(t);
+    }
+    tiles.push(row);
+  }
+}
+ 
+/* ════════════════════════════════════════════════════════
+   BUILD ON-SCREEN KEYBOARD
+   ════════════════════════════════════════════════════════ */
+const LAYOUT = [
+  ['q','w','e','r','t','y','u','i','o','p'],
+  ['a','s','d','f','g','h','j','k','l'],
+  ['Enter','z','x','c','v','b','n','m','⌫']
+];
+ 
+function buildKB() {
+  const kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+  LAYOUT.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'krow';
+    row.forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'key' + (k.length > 1 ? ' wide' : '');
+      btn.textContent = k;
+      btn.addEventListener('click', () => press(k));
+      if (k.length === 1) keyEls[k] = btn;
+      div.appendChild(btn);
+    });
+    kb.appendChild(div);
+  });
+}
+ 
+/* ════════════════════════════════════════════════════════
+   INPUT — physical keyboard
+   ════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'Enter')                    press('Enter');
+  else if (e.key === 'Backspace')           press('⌫');
+  else if (/^[a-zA-Z]$/.test(e.key))       press(e.key.toLowerCase());
+});
+ 
+/* ════════════════════════════════════════════════════════
+   INPUT — core handler
+   ════════════════════════════════════════════════════════ */
+function press(key) {
+  if (over) return;
+  if (key === '⌫')      erase();
+  else if (key === 'Enter') submit();
+  else                  type(key);
+}
+ 
+function type(letter) {
+  if (curCol >= 5) return;
+  const t = tiles[curRow][curCol];
+  t.textContent = letter;
+  t.classList.add('filled');
+  t.classList.remove('pop');
+  void t.offsetWidth;   // force reflow to restart animation
+  t.classList.add('pop');
+  t.addEventListener('animationend', () => t.classList.remove('pop'), { once: true });
+  curCol++;
+}
+ 
+function erase() {
+  if (curCol <= 0) return;
+  curCol--;
+  const t = tiles[curRow][curCol];
+  t.textContent = '';
+  t.classList.remove('filled');
+}
+ 
+/* ════════════════════════════════════════════════════════
+   SUBMIT GUESS
+   ════════════════════════════════════════════════════════ */
+function submit() {
+  if (curCol < 5) { toast('Not enough letters'); shake(curRow); return; }
+ 
+  const guess = tiles[curRow].map(t => t.textContent).join('').toLowerCase();
+ 
+  const result = score(guess, answer);
+  const DUR = 500, STAGGER = 300;  // ms
+ 
+  /* Staggered tile flip — colour applied at visual midpoint */
+  tiles[curRow].forEach((t, i) => {
+    const delay = i * STAGGER;
+    t.style.setProperty('--fd',  DUR + 'ms');
+    t.style.setProperty('--fd2', delay + 'ms');
+    // colour assigned at flip midpoint so it appears with the reveal
+    setTimeout(() => { t.dataset.s = result[i]; }, delay + DUR / 2);
+    t.classList.remove('flip');
+    void t.offsetWidth;
+    t.classList.add('flip');
+    t.addEventListener('animationend', () => t.classList.remove('flip'), { once: true });
+  });
+ 
+  /* After last tile finishes flipping, update KB and check outcome */
+  setTimeout(() => {
+    colorKeys(guess, result);
+    const row = curRow;
+    curRow++;
+    curCol = 0;
+    checkEnd(guess, result, row);
+  }, 4 * STAGGER + DUR + 60);
+}
+ 
+/* ════════════════════════════════════════════════════════
+   SCORING  (duplicate-letter safe)
+   Pass 1: mark greens and null them out in both arrays.
+   Pass 2: mark yellows using remaining (non-null) letters.
+   ════════════════════════════════════════════════════════ */
+function score(guess, answer) {
+  const res = Array(5).fill('absent');
+  const aArr = [...answer], gArr = [...guess];
+ 
+  for (let i = 0; i < 5; i++) {
+    if (gArr[i] === aArr[i]) {
+      res[i] = 'correct';
+      aArr[i] = gArr[i] = null;
+    }
+  }
+  for (let i = 0; i < 5; i++) {
+    if (!gArr[i]) continue;
+    const j = aArr.indexOf(gArr[i]);
+    if (j !== -1) { res[i] = 'present'; aArr[j] = null; }
+  }
+  return res;
+}
+ 
+/* ════════════════════════════════════════════════════════
+   KEYBOARD COLOURING  (only upgrade, never downgrade)
+   correct > present > absent
+   ════════════════════════════════════════════════════════ */
+const RANK = { correct: 3, present: 2, absent: 1 };
+ 
+function colorKeys(guess, result) {
+  for (let i = 0; i < 5; i++) {
+    const el = keyEls[guess[i]];
+    if (!el) continue;
+    if (!el.dataset.s || RANK[result[i]] > RANK[el.dataset.s]) {
+      el.dataset.s = result[i];
+    }
+  }
+}
+ 
+/* ════════════════════════════════════════════════════════
+   WIN / LOSE
+   ════════════════════════════════════════════════════════ */
+const PRAISE = ['Genius!','Magnificent!','Impressive!','Splendid!','Great!','Phew!'];
+ 
+function checkEnd(guess, result, row) {
+  const won = result.every(r => r === 'correct');
+  if (won) {
+    over = true;
+    setTimeout(() => bounce(row), 100);
+    setTimeout(() => { toast(PRAISE[Math.min(row, 5)], 2200); showAgain(); }, 500);
+  } else if (curRow >= 6) {
+    over = true;
+    setTimeout(() => { toast(answer.toUpperCase(), 3500); showAgain(); }, 200);
+  }
+}
+ 
+/* ════════════════════════════════════════════════════════
+   ANIMATIONS
+   ════════════════════════════════════════════════════════ */
+function shake(row) {
+  tiles[row].forEach(t => {
+    t.classList.remove('shake');
+    void t.offsetWidth;
+    t.classList.add('shake');
+    t.addEventListener('animationend', () => t.classList.remove('shake'), { once: true });
+  });
+}
+ 
+function bounce(row) {
+  tiles[row].forEach((t, i) => {
+    t.style.setProperty('--bd', (i * 100) + 'ms');
+    t.classList.remove('bounce');
+    void t.offsetWidth;
+    t.classList.add('bounce');
+    t.addEventListener('animationend', () => t.classList.remove('bounce'), { once: true });
+  });
+}
+ 
+/* ════════════════════════════════════════════════════════
+   TOAST  — brief message overlay
+   ════════════════════════════════════════════════════════ */
+function toast(msg, duration = 1800) {
+  const wrap = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  el.style.setProperty('--td', (duration / 1000 - 0.3) + 's');
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), duration + 100);
+}
+ 
+/* ════════════════════════════════════════════════════════
+   PLAY AGAIN
+   ════════════════════════════════════════════════════════ */
+function showAgain() { document.getElementById('again').style.display = 'block'; }
+document.getElementById('again').addEventListener('click', init);
+ 
+/* ── GO ── */
+init();
+</script>
+</body>
+</html>
