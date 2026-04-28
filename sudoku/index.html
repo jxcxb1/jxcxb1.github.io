@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SUDOKU</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #18181f;
+    --border: #2a2a38;
+    --border-bright: #3a3a50;
+    --text: #e8e8f0;
+    --text-dim: #6a6a80;
+    --text-muted: #3a3a50;
+    --accent: #7c6af7;
+    --accent-glow: rgba(124,106,247,0.3);
+    --accent2: #f76a8a;
+    --accent2-glow: rgba(247,106,138,0.25);
+    --success: #6af7b8;
+    --given: #c8c8e0;
+    --given-bg: #16161e;
+    --selected: rgba(124,106,247,0.18);
+    --peer: rgba(124,106,247,0.07);
+    --same: rgba(124,106,247,0.28);
+    --conflict: rgba(247,106,138,0.2);
+    --conflict-text: #f76a8a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 24px 16px 48px;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 20% 10%, rgba(124,106,247,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 80% 90%, rgba(247,106,138,0.05) 0%, transparent 60%);
+  }
+  header { text-align: center; margin-bottom: 24px; }
+  .logo {
+    font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: clamp(28px, 6vw, 48px);
+    letter-spacing: 0.2em;
+    background: linear-gradient(135deg, #7c6af7 0%, #b06af7 50%, #f76a8a 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    filter: drop-shadow(0 0 20px rgba(124,106,247,0.4)); margin-bottom: 4px;
+  }
+  .tagline { font-size: 11px; letter-spacing: 0.3em; color: var(--text-dim); text-transform: uppercase; }
+ 
+  /* Difficulty */
+  .diff-section { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 16px; width: 100%; max-width: 520px; }
+  .diff-tabs { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; gap: 4px; }
+  .diff-btn { font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--text-dim); transition: all 0.2s; text-transform: uppercase; }
+  .diff-btn:hover { color: var(--text); background: var(--surface2); }
+  .diff-btn.active { background: var(--accent); color: #fff; box-shadow: 0 0 16px var(--accent-glow); }
+  .best-times { display: flex; gap: 8px; width: 100%; }
+  .time-card { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 6px; text-align: center; transition: border-color 0.2s; }
+  .time-card.active-diff { border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+  .time-card-label { font-family: 'Orbitron', sans-serif; font-size: 8px; letter-spacing: 0.15em; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+  .time-card-val { font-family: 'Share Tech Mono', monospace; font-size: 14px; color: var(--accent); }
+  .time-card-val.no-time { color: var(--text-muted); font-size: 11px; }
+ 
+  /* Settings bar */
+  .settings-bar {
+    display: flex; align-items: center; justify-content: space-around; flex-wrap: wrap; gap: 10px;
+    width: 100%; max-width: 520px; margin-bottom: 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px;
+  }
+  .setting-item { display: flex; align-items: center; gap: 8px; }
+  .setting-label { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+  .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; border-radius: 20px; background: var(--border-bright); cursor: pointer; transition: 0.2s; }
+  .toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; border-radius: 50%; background: var(--text-dim); transition: 0.2s; }
+  .toggle input:checked + .toggle-slider { background: var(--accent); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: #fff; }
+ 
+  /* Game meta */
+  .game-meta { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 520px; margin-bottom: 14px; }
+  .timer-wrap { display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
+  .timer-display { font-family: 'Share Tech Mono', monospace; font-size: 28px; color: var(--text-dim); letter-spacing: 0.05em; transition: color 0.2s; }
+  .timer-display.running { color: var(--success); }
+  .timer-display.paused { color: var(--text-muted); }
+  .timer-hint-text { font-size: 10px; color: var(--text-muted); letter-spacing: 0.04em; }
+  .mistakes-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
+  .mistake-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: all 0.2s; }
+  .mistake-dot.filled { background: var(--accent2); box-shadow: 0 0 6px var(--accent2-glow); }
+  .meta-btns { display: flex; gap: 8px; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.15s; }
+  .icon-btn:hover { border-color: var(--border-bright); color: var(--text); }
+ 
+  /* Board */
+  .board-wrap { position: relative; width: 100%; max-width: 520px; margin-bottom: 14px; }
+  .board { display: grid; grid-template-columns: repeat(9, 1fr); border: 2px solid var(--border-bright); border-radius: 12px; overflow: hidden; background: var(--surface); }
+  .cell { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; font-family: 'Share Tech Mono', monospace; font-size: clamp(16px,3.5vw,26px); position: relative; background: var(--surface); border: 1px solid var(--border); transition: background 0.1s; user-select: none; }
+  .cell:nth-child(3n) { border-right: 2px solid var(--border-bright); }
+  .cell:nth-child(9n) { border-right: 1px solid var(--border); }
+  .cell[data-row="2"], .cell[data-row="5"] { border-bottom: 2px solid var(--border-bright); }
+  .cell.given { color: var(--given); background: var(--given-bg); cursor: default; }
+  .cell.user-filled { color: var(--accent); }
+  .cell.conflict { color: var(--conflict-text); background: var(--conflict); }
+  .cell.selected { background: var(--selected); }
+  .cell.peer { background: var(--peer); }
+  .cell.same-num { background: var(--same); }
+  .cell-notes { display: grid; grid-template-columns: repeat(3,1fr); grid-template-rows: repeat(3,1fr); width: 90%; height: 90%; pointer-events: none; }
+  .note-num { font-family: 'Share Tech Mono', monospace; font-size: clamp(7px,1.2vw,10px); color: var(--text-dim); display: flex; align-items: center; justify-content: center; }
+  .note-num.visible { color: var(--accent); opacity: 0.7; }
+ 
+  /* Numpad */
+  .numpad { display: grid; grid-template-columns: repeat(9,1fr); gap: 6px; width: 100%; max-width: 520px; margin-bottom: 10px; }
+  .num-btn { aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-family: 'Share Tech Mono', monospace; font-size: clamp(16px,3vw,22px); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; position: relative; }
+  .num-btn:hover { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+  .num-btn.depleted { opacity: 0.25; pointer-events: none; }
+  .num-count { position: absolute; bottom: 3px; right: 4px; font-size: 8px; color: var(--text-muted); font-family: 'DM Sans', sans-serif; }
+ 
+  /* Actions */
+  .actions { display: flex; gap: 8px; width: 100%; max-width: 520px; margin-bottom: 12px; }
+  .action-btn { flex: 1; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text-dim); font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.15s; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .action-btn .ab-icon { font-size: 17px; }
+  .action-btn:hover { border-color: var(--border-bright); color: var(--text); }
+  .action-btn.note-active { border-color: var(--accent); color: var(--accent); background: rgba(124,106,247,0.08); }
+  .action-btn:disabled { opacity: 0.3; pointer-events: none; }
+  .hint-sub { font-size: 9px; color: var(--text-muted); }
+ 
+  /* New game */
+  .new-game-btn { width: 100%; max-width: 520px; padding: 14px; border-radius: 12px; border: none; background: linear-gradient(135deg, #7c6af7, #b06af7); color: #fff; font-family: 'Orbitron', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.15em; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 24px rgba(124,106,247,0.3); margin-bottom: 20px; }
+  .new-game-btn:hover { box-shadow: 0 4px 32px rgba(124,106,247,0.5); transform: translateY(-1px); }
+ 
+  /* Tutorial link */
+  .tut-link-wrap { width: 100%; max-width: 520px; text-align: center; }
+  .tut-link { font-size: 12px; color: var(--text-muted); cursor: pointer; background: none; border: none; font-family: 'DM Sans', sans-serif; text-decoration: underline; text-underline-offset: 3px; transition: color 0.15s; }
+  .tut-link:hover { color: var(--accent); }
+ 
+  /* Tutorial overlay */
+  .tut-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.88); backdrop-filter: blur(8px); z-index: 200; align-items: flex-end; justify-content: center; padding: 0 16px 20px; }
+  .tut-overlay.show { display: flex; }
+  .tut-panel { background: var(--surface); border: 1px solid var(--border-bright); border-radius: 20px 20px 16px 16px; width: 100%; max-width: 520px; padding: 28px 28px 22px; position: relative; box-shadow: 0 -8px 40px rgba(124,106,247,0.12); animation: slideUp 0.3s cubic-bezier(0.34,1.3,0.64,1); }
+  @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .tut-x { position: absolute; top: 16px; right: 18px; background: none; border: none; font-size: 20px; color: var(--text-dim); cursor: pointer; transition: color 0.15s; line-height: 1; }
+  .tut-x:hover { color: var(--text); }
+  .tut-prog { display: flex; gap: 5px; margin-bottom: 20px; }
+  .tut-prog-dot { flex: 1; height: 3px; border-radius: 2px; background: var(--border-bright); transition: background 0.25s; }
+  .tut-prog-dot.done { background: var(--accent); opacity: 0.5; }
+  .tut-prog-dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+  .tut-tag { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; margin-bottom: 8px; }
+  .tut-title { font-family: 'Orbitron', sans-serif; font-size: 17px; font-weight: 700; margin-bottom: 12px; line-height: 1.3; }
+  .tut-body { font-size: 13.5px; color: var(--text-dim); line-height: 1.7; margin-bottom: 22px; }
+  .tut-body strong { color: var(--text); }
+  .tn { display: inline-flex; align-items: center; justify-content: center; width: 21px; height: 21px; border-radius: 5px; background: var(--accent); color: #fff; font-family: 'Share Tech Mono', monospace; font-size: 12px; margin: 0 1px; vertical-align: middle; }
+  .tut-footer { display: flex; align-items: center; justify-content: space-between; }
+  .tut-counter { font-size: 11px; color: var(--text-muted); }
+  .tut-btns { display: flex; gap: 8px; }
+  .tut-btn { padding: 10px 18px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-dim); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  .tut-btn:hover { border-color: var(--border-bright); color: var(--text); }
+  .tut-btn.pri { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 12px var(--accent-glow); }
+  .tut-btn.pri:hover { box-shadow: 0 0 20px var(--accent-glow); }
+ 
+  /* Win overlay */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.82); backdrop-filter: blur(6px); z-index: 100; align-items: center; justify-content: center; }
+  .overlay.show { display: flex; }
+  .win-card { background: var(--surface); border: 1px solid var(--accent); border-radius: 20px; padding: 40px 44px; text-align: center; box-shadow: 0 0 60px var(--accent-glow); max-width: 340px; width: 90%; animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes popIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .win-emoji { font-size: 52px; margin-bottom: 12px; }
+  .win-title { font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; background: linear-gradient(135deg,#7c6af7,#f76a8a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 8px; }
+  .win-diff { font-size: 12px; color: var(--text-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .win-time { font-family: 'Share Tech Mono', monospace; font-size: 38px; color: var(--success); margin: 14px 0 6px; }
+  .win-time.notimed { font-size: 18px; color: var(--text-muted); margin: 14px 0 6px; }
+  .win-best { font-size: 12px; color: var(--accent); margin-bottom: 24px; min-height: 16px; }
+  .win-new-btn { width: 100%; padding: 14px; border-radius: 10px; border: none; background: linear-gradient(135deg,#7c6af7,#b06af7); color: #fff; font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.15em; cursor: pointer; box-shadow: 0 4px 20px rgba(124,106,247,0.35); transition: all 0.15s; }
+  .win-new-btn:hover { box-shadow: 0 4px 30px rgba(124,106,247,0.55); }
+</style>
+</head>
+<body>
+ 
+<header>
+  <div class="logo">SUDOKU</div>
+  <div class="tagline">Logic &amp; Precision</div>
+</header>
+ 
+<div class="diff-section">
+  <div class="diff-tabs">
+    <button class="diff-btn active" data-diff="easy">Easy</button>
+    <button class="diff-btn" data-diff="medium">Medium</button>
+    <button class="diff-btn" data-diff="hard">Hard</button>
+    <button class="diff-btn" data-diff="expert">Expert</button>
+  </div>
+  <div class="best-times">
+    <div class="time-card active-diff" data-card="easy"><div class="time-card-label">Easy</div><div class="time-card-val no-time" id="bt-easy">—</div></div>
+    <div class="time-card" data-card="medium"><div class="time-card-label">Medium</div><div class="time-card-val no-time" id="bt-medium">—</div></div>
+    <div class="time-card" data-card="hard"><div class="time-card-label">Hard</div><div class="time-card-val no-time" id="bt-hard">—</div></div>
+    <div class="time-card" data-card="expert"><div class="time-card-label">Expert</div><div class="time-card-val no-time" id="bt-expert">—</div></div>
+  </div>
+</div>
+ 
+<!-- Settings -->
+<div class="settings-bar">
+  <div class="setting-item">
+    <label class="toggle"><input type="checkbox" id="mistake-toggle"><span class="toggle-slider"></span></label>
+    <span class="setting-label">Mistake Limit (3)</span>
+  </div>
+  <div class="setting-item">
+    <label class="toggle"><input type="checkbox" id="timer-toggle" checked><span class="toggle-slider"></span></label>
+    <span class="setting-label">Show Timer</span>
+  </div>
+</div>
+ 
+<!-- Meta row -->
+<div class="game-meta">
+  <div class="timer-wrap" id="timer-wrap" title="Click to start / pause">
+    <div class="timer-display" id="timer">00:00</div>
+    <div class="timer-hint-text" id="timer-hint">▶ click to start</div>
+  </div>
+  <div class="mistakes-row" id="mistakes-row">
+    <span>Mistakes:</span>
+    <div class="mistake-dot" id="m1"></div>
+    <div class="mistake-dot" id="m2"></div>
+    <div class="mistake-dot" id="m3"></div>
+  </div>
+  <div class="meta-btns">
+    <button class="icon-btn" id="pause-btn" title="Pause">⏸</button>
+  </div>
+</div>
+ 
+<!-- Board -->
+<div class="board-wrap"><div class="board" id="board"></div></div>
+ 
+<!-- Numpad -->
+<div class="numpad" id="numpad"></div>
+ 
+<!-- Actions -->
+<div class="actions">
+  <button class="action-btn" id="undo-btn"><span class="ab-icon">↩</span><span>Undo</span></button>
+  <button class="action-btn" id="erase-btn"><span class="ab-icon">⌫</span><span>Erase</span></button>
+  <button class="action-btn" id="note-btn"><span class="ab-icon">✏</span><span>Notes</span></button>
+  <button class="action-btn" id="hint-btn"><span class="ab-icon">💡</span><span>Hint</span><span class="hint-sub" id="hint-sub"></span></button>
+</div>
+ 
+<button class="new-game-btn" id="new-game-btn">NEW GAME</button>
+ 
+<div class="tut-link-wrap">
+  <button class="tut-link" id="tut-open">How to play Sudoku →</button>
+</div>
+ 
+<!-- Tutorial overlay -->
+<div class="tut-overlay" id="tut-overlay">
+  <div class="tut-panel">
+    <button class="tut-x" id="tut-close">✕</button>
+    <div class="tut-prog" id="tut-prog"></div>
+    <div class="tut-tag" id="tut-tag"></div>
+    <div class="tut-title" id="tut-title"></div>
+    <div class="tut-body" id="tut-body"></div>
+    <div class="tut-footer">
+      <span class="tut-counter" id="tut-counter"></span>
+      <div class="tut-btns">
+        <button class="tut-btn" id="tut-prev">Back</button>
+        <button class="tut-btn pri" id="tut-next">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+ 
+<!-- Win overlay -->
+<div class="overlay" id="overlay">
+  <div class="win-card">
+    <div class="win-emoji">🎉</div>
+    <div class="win-title">PUZZLE SOLVED!</div>
+    <div class="win-diff" id="win-diff"></div>
+    <div class="win-time" id="win-time"></div>
+    <div class="win-best" id="win-best"></div>
+    <button class="win-new-btn" id="win-new-btn">PLAY AGAIN</button>
+  </div>
+</div>
+ 
+<script>
+// ── Config ──────────────────────────────────────────────
+const DIFFS = {
+  easy:   { label:'Easy',   clues:46, hints:4, mistakeDefault:false },
+  medium: { label:'Medium', clues:36, hints:3, mistakeDefault:false },
+  hard:   { label:'Hard',   clues:28, hints:2, mistakeDefault:true  },
+  expert: { label:'Expert', clues:22, hints:1, mistakeDefault:true  },
+};
+ 
+// ── State ────────────────────────────────────────────────
+let difficulty='easy', solution=[], puzzle=[], userGrid=[], notes=[];
+let selected=-1, noteMode=false, history=[];
+let seconds=0, timerRunning=false, timerStarted=false, timerInterval=null;
+let mistakes=0, mistakeLimitOn=false, showTimerPref=true;
+let paused=false, gameActive=false, bestTimes={};
+let hintsLeft=4;
+ 
+// ── Generator ────────────────────────────────────────────
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
+function isValid(g,pos,n){
+  const r=0|(pos/9),c=pos%9;
+  for(let i=0;i<9;i++)if(g[r*9+i]===n||g[i*9+c]===n)return false;
+  const br=(0|(r/3))*3,bc=(0|(c/3))*3;
+  for(let dr=0;dr<3;dr++)for(let dc=0;dc<3;dc++)if(g[(br+dr)*9+bc+dc]===n)return false;
+  return true;
+}
+function solve(g){
+  const e=g.indexOf(0);if(e===-1)return true;
+  for(const n of shuffle([1,2,3,4,5,6,7,8,9])){if(isValid(g,e,n)){g[e]=n;if(solve(g))return true;g[e]=0;}}
+  return false;
+}
+function generatePuzzle(clues){
+  const sol=Array(81).fill(0);solve(sol);
+  const puz=[...sol];let rem=81-clues;
+  for(const i of shuffle([...Array(81).keys()])){if(rem<=0)break;puz[i]=0;rem--;}
+  return{solution:sol,puzzle:puz};
+}
+ 
+// ── Render ───────────────────────────────────────────────
+function renderBoard(){
+  const bd=document.getElementById('board');bd.innerHTML='';
+  for(let i=0;i<81;i++){
+    const cell=document.createElement('div');cell.className='cell';
+    const row=0|(i/9),col=i%9;
+    cell.dataset.row=row;cell.dataset.col=col;cell.dataset.idx=i;
+    const given=puzzle[i]!==0;
+    if(given){cell.classList.add('given');cell.textContent=puzzle[i];}
+    else if(userGrid[i]!==0){
+      cell.classList.add(isValidPlacement(i,userGrid[i])?'user-filled':'conflict');
+      cell.textContent=userGrid[i];
+    } else if(notes[i].some(Boolean)){
+      const ng=document.createElement('div');ng.className='cell-notes';
+      for(let n=1;n<=9;n++){const nd=document.createElement('div');nd.className='note-num'+(notes[i][n-1]?' visible':'');nd.textContent=notes[i][n-1]?n:'';ng.appendChild(nd);}
+      cell.appendChild(ng);
+    }
+    if(selected!==-1){
+      if(i===selected){cell.classList.add('selected');}
+      else{
+        const sr=0|(selected/9),sc=selected%9;
+        if(row===sr||col===sc||(0|(row/3))*3===(0|(sr/3))*3&&(0|(col/3))*3===(0|(sc/3))*3)cell.classList.add('peer');
+        const sv=puzzle[selected]||userGrid[selected];
+        if(sv&&sv===(puzzle[i]||userGrid[i]))cell.classList.add('same-num');
+      }
+    }
+    cell.addEventListener('click',()=>selectCell(i));
+    bd.appendChild(cell);
+  }
+}
+ 
+function renderNumpad(){
+  const pad=document.getElementById('numpad');pad.innerHTML='';
+  const counts=Array(10).fill(0);
+  for(let i=0;i<81;i++){const v=puzzle[i]||userGrid[i];if(v)counts[v]++;}
+  for(let n=1;n<=9;n++){
+    const btn=document.createElement('button');btn.className='num-btn';btn.textContent=n;
+    const rem=9-counts[n];if(rem<=0)btn.classList.add('depleted');
+    const c=document.createElement('span');c.className='num-count';c.textContent=rem>0?rem:'';btn.appendChild(c);
+    btn.addEventListener('click',()=>inputNum(n));pad.appendChild(btn);
+  }
+}
+ 
+function renderMistakes(){
+  const on=mistakeLimitOn;
+  document.getElementById('mistakes-row').style.opacity=on?'1':'0.45';
+  for(let i=1;i<=3;i++){
+    const d=document.getElementById('m'+i);
+    d.classList.toggle('filled',on&&i<=mistakes);
+  }
+}
+ 
+function renderHintBtn(){
+  const max=DIFFS[difficulty].hints;
+  document.getElementById('hint-sub').textContent=hintsLeft+'/'+max;
+  document.getElementById('hint-btn').disabled=hintsLeft<=0;
+}
+ 
+function updateBestTimes(){
+  ['easy','medium','hard','expert'].forEach(d=>{
+    const el=document.getElementById('bt-'+d),v=bestTimes[d];
+    if(v){el.textContent=formatTime(v);el.classList.remove('no-time');}
+    else{el.textContent='—';el.classList.add('no-time');}
+  });
+}
+ 
+function updateTimerEl(){
+  const el=document.getElementById('timer');
+  el.textContent=formatTime(seconds);
+  el.style.color='';el.style.fontSize='';
+  if(!timerStarted)el.className='timer-display';
+  else el.className='timer-display '+(paused?'paused':'running');
+}
+ 
+function setTimerVisible(v){
+  document.getElementById('timer-wrap').style.visibility=v?'visible':'hidden';
+}
+ 
+// ── Logic ────────────────────────────────────────────────
+function isValidPlacement(idx,num){
+  const r=0|(idx/9),c=idx%9;
+  for(let i=0;i<9;i++){if(i!==c&&(puzzle[r*9+i]||userGrid[r*9+i])===num)return false;if(i!==r&&(puzzle[i*9+c]||userGrid[i*9+c])===num)return false;}
+  const br=(0|(r/3))*3,bc=(0|(c/3))*3;
+  for(let dr=0;dr<3;dr++)for(let dc=0;dc<3;dc++){const i=(br+dr)*9+bc+dc;if(i!==idx&&(puzzle[i]||userGrid[i])===num)return false;}
+  return true;
+}
+ 
+function selectCell(idx){if(paused||!gameActive)return;selected=idx;renderBoard();}
+ 
+function inputNum(num){
+  if(selected===-1||!gameActive||paused)return;
+  if(puzzle[selected]!==0)return;
+  if(noteMode){
+    const prev=[...notes[selected]];notes[selected][num-1]=!notes[selected][num-1];
+    history.push({type:'note',idx:selected,prev});
+  } else {
+    const prev=userGrid[selected];
+    if(prev===num){userGrid[selected]=0;history.push({type:'place',idx:selected,prev,next:0});}
+    else{
+      userGrid[selected]=num;history.push({type:'place',idx:selected,prev,next:num});
+      notes[selected]=Array(9).fill(false);
+      if(num!==solution[selected]){
+        mistakes++;renderMistakes();
+        if(mistakeLimitOn&&mistakes>=3){setTimeout(gameOver,400);return;}
+      }
+    }
+    if(checkWin()){renderBoard();renderNumpad();setTimeout(showWin,300);return;}
+  }
+  renderBoard();renderNumpad();
+}
+ 
+function eraseCell(){
+  if(selected===-1||!gameActive||paused||puzzle[selected]!==0)return;
+  const prev=userGrid[selected],pn=[...notes[selected]];
+  if(prev!==0){history.push({type:'place',idx:selected,prev,next:0});userGrid[selected]=0;}
+  else if(pn.some(Boolean)){history.push({type:'note',idx:selected,prev:pn});notes[selected]=Array(9).fill(false);}
+  renderBoard();renderNumpad();
+}
+ 
+function undo(){
+  if(!history.length||!gameActive)return;
+  const a=history.pop();
+  if(a.type==='place')userGrid[a.idx]=a.prev;else notes[a.idx]=[...a.prev];
+  renderBoard();renderNumpad();
+}
+ 
+function hint(){
+  if(!gameActive||paused||hintsLeft<=0)return;
+  const empty=[];for(let i=0;i<81;i++)if(puzzle[i]===0&&userGrid[i]===0)empty.push(i);
+  if(!empty.length)return;
+  const idx=empty[0|Math.random()*empty.length];
+  history.push({type:'place',idx,prev:0,next:solution[idx]});
+  userGrid[idx]=solution[idx];notes[idx]=Array(9).fill(false);
+  selected=idx;hintsLeft--;
+  renderBoard();renderNumpad();renderHintBtn();
+  if(checkWin())setTimeout(showWin,300);
+}
+ 
+function checkWin(){for(let i=0;i<81;i++)if((puzzle[i]||userGrid[i])!==solution[i])return false;return true;}
+ 
+function gameOver(){
+  stopTimer();gameActive=false;
+  for(let i=0;i<81;i++)userGrid[i]=solution[i];
+  renderBoard();
+  const el=document.getElementById('timer');
+  el.textContent='GAME OVER';el.style.color='var(--accent2)';el.style.fontSize='15px';el.className='timer-display';
+}
+ 
+// ── Win ──────────────────────────────────────────────────
+function showWin(){
+  stopTimer();gameActive=false;
+  const prev=bestTimes[difficulty];let isNew=false;
+  if(timerStarted&&(!prev||seconds<prev)){bestTimes[difficulty]=seconds;saveBestTimes();isNew=true;}
+  updateBestTimes();
+  document.getElementById('win-diff').textContent=DIFFS[difficulty].label+' Mode';
+  const wt=document.getElementById('win-time');
+  if(timerStarted){wt.textContent=formatTime(seconds);wt.className='win-time';}
+  else{wt.textContent='Completed (no timer)';wt.className='win-time notimed';}
+  document.getElementById('win-best').textContent=isNew?'🏆 New best time!':(bestTimes[difficulty]?'Best: '+formatTime(bestTimes[difficulty]):'');
+  document.getElementById('overlay').classList.add('show');
+}
+ 
+// ── Timer ────────────────────────────────────────────────
+function startClock(){
+  if(timerRunning)return;
+  timerStarted=true;timerRunning=true;
+  document.getElementById('timer-hint').textContent='⏸ click to pause';
+  timerInterval=setInterval(()=>{if(!paused){seconds++;updateTimerEl();}},1000);
+  updateTimerEl();
+}
+function stopTimer(){clearInterval(timerInterval);timerRunning=false;}
+function formatTime(s){return String(0|s/60).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
+ 
+function togglePause(){
+  if(!gameActive||!timerStarted)return;
+  paused=!paused;
+  document.getElementById('pause-btn').textContent=paused?'▶':'⏸';
+  document.getElementById('timer-hint').textContent=paused?'▶ click to resume':'⏸ click to pause';
+  document.getElementById('board').style.filter=paused?'blur(10px)':'';
+  updateTimerEl();
+}
+ 
+// ── Persistence ──────────────────────────────────────────
+function saveBestTimes(){try{localStorage.setItem('sudoku_best2',JSON.stringify(bestTimes));}catch(e){}}
+function loadBestTimes(){try{bestTimes=JSON.parse(localStorage.getItem('sudoku_best2')||'{}');}catch(e){bestTimes={};}}
+ 
+// ── New Game ─────────────────────────────────────────────
+function newGame(){
+  document.getElementById('overlay').classList.remove('show');
+  stopTimer();
+  paused=false;timerStarted=false;seconds=0;
+  document.getElementById('pause-btn').textContent='⏸';
+  document.getElementById('timer-hint').textContent='▶ click to start';
+  document.getElementById('board').style.filter='';
+  mistakes=0;selected=-1;noteMode=false;history=[];
+  document.getElementById('note-btn').classList.remove('note-active');
+  mistakeLimitOn=DIFFS[difficulty].mistakeDefault;
+  document.getElementById('mistake-toggle').checked=mistakeLimitOn;
+  hintsLeft=DIFFS[difficulty].hints;
+  renderMistakes();renderHintBtn();
+  const{solution:sol,puzzle:puz}=generatePuzzle(DIFFS[difficulty].clues);
+  solution=sol;puzzle=puz;userGrid=Array(81).fill(0);notes=Array(81).fill(null).map(()=>Array(9).fill(false));
+  gameActive=true;
+  updateTimerEl();renderBoard();renderNumpad();
+  document.querySelectorAll('.time-card').forEach(c=>c.classList.toggle('active-diff',c.dataset.card===difficulty));
+}
+ 
+// ── Tutorial ─────────────────────────────────────────────
+const STEPS=[
+  {tag:'The Goal',title:'What is Sudoku?',
+   body:`Sudoku is a logic puzzle on a <strong>9×9 grid</strong> split into nine <strong>3×3 boxes</strong>.<br><br>Fill every empty cell so each row, column, and box contains every digit <span class="tn">1</span> through <span class="tn">9</span> exactly once. No repeats anywhere.`},
+  {tag:'Given Clues',title:'Your Starting Numbers',
+   body:`Some cells come pre-filled — these are your <strong>clues</strong>, shown in bright white. You <strong>cannot change</strong> them.<br><br>The fewer clues, the harder the puzzle. <strong>Easy</strong> gives you 46 clues; <strong>Expert</strong> gives only 22.`},
+  {tag:'The Rule',title:'No Repeats — Anywhere',
+   body:`Every digit <span class="tn">1</span>–<span class="tn">9</span> must appear <strong>exactly once</strong> in:<br><br>
+• Each <strong>row</strong> (9 cells across)<br>
+• Each <strong>column</strong> (9 cells down)<br>
+• Each <strong>3×3 box</strong> (bold-bordered squares)<br><br>
+A <span style="color:var(--conflict-text);font-weight:600">red number</span> means it conflicts with another in the same row, column, or box.`},
+  {tag:'Playing',title:'Selecting & Placing',
+   body:`<strong>Click any empty cell</strong> to select it. The row, column, and 3×3 box light up in purple to show what's connected.<br><br>
+Then <strong>click a number</strong> on the numpad below the board (or press <strong>1–9</strong> on your keyboard) to place it. Click the same number again to erase it.<br><br>
+Use <strong>Erase ⌫</strong> (or Backspace) to clear, and <strong>Undo ↩</strong> (Ctrl+Z) to step back.`},
+  {tag:'Notes',title:'Pencil Marks ✏',
+   body:`Unsure what belongs in a cell? Enable <strong>Notes mode</strong> (click ✏ or press N).<br><br>
+In notes mode, tapping a number adds a tiny <em>candidate mark</em> instead of placing it. You can add multiple candidates per cell and cross them off as you reason through the puzzle.`},
+  {tag:'Hints & Mistakes',title:'Your Safety Nets',
+   body:`<strong>Hints 💡</strong> reveal one correct answer. Hints per difficulty:<br>
+Easy: <strong>4</strong> &nbsp;·&nbsp; Medium: <strong>3</strong> &nbsp;·&nbsp; Hard: <strong>2</strong> &nbsp;·&nbsp; Expert: <strong>1</strong><br><br>
+The <strong>Mistake Limit</strong> toggle enforces a 3-strike rule — on Easy and Medium it's <em>off</em> by default (relaxed). On Hard and Expert it's <em>on</em> by default. You can always toggle it yourself in the settings bar.`},
+  {tag:'Timer',title:'Play at Your Own Pace',
+   body:`The timer <strong>doesn't start automatically</strong>. Click the clock display when you're ready to race — or ignore it for a stress-free solve.<br><br>
+You can also <strong>hide the timer</strong> entirely with the toggle in settings. Only timed completions count toward your best-time records.<br><br>
+Hit <strong>⏸ Pause</strong> to blur the board and step away without peeking.`},
+  {tag:"Let's Go!",title:'You\'re Ready to Solve 🎉',
+   body:`Quick recap:<br><br>
+• Each digit <span class="tn">1</span>–<span class="tn">9</span> appears once per <strong>row, column & box</strong><br>
+• Select a cell → tap a number to place it<br>
+• Use <strong>Notes</strong> mode to jot candidates<br>
+• Hints are there when you're stuck<br>
+• The timer is entirely optional<br><br>
+<strong>Good luck!</strong> Start with Easy and work your way up.`},
+];
+ 
+let tutStep=0;
+function openTut(){tutStep=0;renderTut();document.getElementById('tut-overlay').classList.add('show');}
+function closeTut(){document.getElementById('tut-overlay').classList.remove('show');}
+function renderTut(){
+  const s=STEPS[tutStep],total=STEPS.length;
+  document.getElementById('tut-tag').textContent='Step '+(tutStep+1)+' — '+s.tag;
+  document.getElementById('tut-title').textContent=s.title;
+  document.getElementById('tut-body').innerHTML=s.body;
+  document.getElementById('tut-counter').textContent=(tutStep+1)+' / '+total;
+  const prog=document.getElementById('tut-prog');prog.innerHTML='';
+  for(let i=0;i<total;i++){const d=document.createElement('div');d.className='tut-prog-dot'+(i<tutStep?' done':i===tutStep?' active':'');prog.appendChild(d);}
+  const prev=document.getElementById('tut-prev'),next=document.getElementById('tut-next');
+  prev.style.display=tutStep===0?'none':'';
+  next.textContent=tutStep===total-1?'Done!':'Next →';
+}
+ 
+document.getElementById('tut-open').addEventListener('click',openTut);
+document.getElementById('tut-close').addEventListener('click',closeTut);
+document.getElementById('tut-prev').addEventListener('click',()=>{if(tutStep>0){tutStep--;renderTut();}});
+document.getElementById('tut-next').addEventListener('click',()=>{if(tutStep<STEPS.length-1){tutStep++;renderTut();}else closeTut();});
+ 
+// ── Settings ─────────────────────────────────────────────
+document.getElementById('mistake-toggle').addEventListener('change',e=>{mistakeLimitOn=e.target.checked;renderMistakes();});
+document.getElementById('timer-toggle').addEventListener('change',e=>{showTimerPref=e.target.checked;setTimerVisible(showTimerPref);});
+ 
+// Timer click
+document.getElementById('timer-wrap').addEventListener('click',()=>{
+  if(!gameActive)return;
+  if(!timerStarted){startClock();return;}
+  togglePause();
+});
+ 
+// Pause btn
+document.getElementById('pause-btn').addEventListener('click',()=>{
+  if(!timerStarted&&gameActive){startClock();return;}
+  togglePause();
+});
+ 
+// Diff buttons
+document.querySelectorAll('.diff-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.diff-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');difficulty=b.dataset.diff;newGame();
+}));
+ 
+document.getElementById('undo-btn').addEventListener('click',undo);
+document.getElementById('erase-btn').addEventListener('click',eraseCell);
+document.getElementById('note-btn').addEventListener('click',()=>{noteMode=!noteMode;document.getElementById('note-btn').classList.toggle('note-active',noteMode);});
+document.getElementById('hint-btn').addEventListener('click',hint);
+document.getElementById('new-game-btn').addEventListener('click',newGame);
+document.getElementById('win-new-btn').addEventListener('click',newGame);
+ 
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('tut-overlay').classList.contains('show'))return;
+  if(e.key==='Escape'){closeTut();return;}
+  if(!gameActive||paused)return;
+  const n=parseInt(e.key);
+  if(n>=1&&n<=9){inputNum(n);return;}
+  if(e.key==='Backspace'||e.key==='Delete'){eraseCell();return;}
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){undo();return;}
+  if(e.key==='n'||e.key==='N'){noteMode=!noteMode;document.getElementById('note-btn').classList.toggle('note-active',noteMode);return;}
+  if(selected===-1){selected=40;renderBoard();return;}
+  const r=0|(selected/9),c=selected%9;
+  if(e.key==='ArrowUp'&&r>0)selected-=9;
+  if(e.key==='ArrowDown'&&r<8)selected+=9;
+  if(e.key==='ArrowLeft'&&c>0)selected-=1;
+  if(e.key==='ArrowRight'&&c<8)selected+=1;
+  renderBoard();
+});
+ 
+// ── Init ─────────────────────────────────────────────────
+loadBestTimes();updateBestTimes();setTimerVisible(true);newGame();
+</script>
+</body>
+</html>
