@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHIPBEAT — 8-bit Step Sequencer</title>
+<style>
+  /* ============================================================
+     FONTS & RESET
+  ============================================================ */
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+ 
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+  :root {
+    --bg:        #0a0a0f;
+    --bg2:       #0f0f1a;
+    --bg3:       #14141f;
+    --border:    #1e1e30;
+    --dim:       #1a1a2e;
+ 
+    --melody:    #00f5ff;
+    --bass:      #a855f7;
+    --kick:      #ff6b35;
+    --snare:     #ffd23f;
+    --hat:       #06ffa5;
+    --arp:       #ff3cac;
+ 
+    --text:      #c8c8e8;
+    --text-dim:  #4a4a6a;
+    --playhead:  #ffffff;
+ 
+    --cell-w:    28px;
+    --cell-h:    20px;
+    --label-w:   52px;
+    --vol-w:     70px;
+  }
+ 
+  html { scroll-behavior: smooth; }
+ 
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+ 
+  /* ============================================================
+     SCANLINE OVERLAY
+  ============================================================ */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+ 
+  /* ============================================================
+     TRANSPORT BAR (sticky top)
+  ============================================================ */
+  #transport {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.6);
+  }
+ 
+  .app-title {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 16px;
+    color: var(--melody);
+    text-shadow: 0 0 12px var(--melody), 0 0 24px var(--melody);
+    letter-spacing: 4px;
+    flex-shrink: 0;
+  }
+  .app-subtitle {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    margin-top: 1px;
+  }
+ 
+  .sep {
+    width: 1px;
+    height: 28px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+ 
+  /* Buttons */
+  .btn {
+    background: var(--dim);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 5px 12px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.1s;
+    position: relative;
+    clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%);
+  }
+  .btn:hover { background: #222235; color: #fff; }
+  .btn:active { transform: scale(0.97); }
+ 
+  .btn-play  { border-color: var(--hat);    color: var(--hat); }
+  .btn-play:hover  { background: rgba(6,255,165,0.15); box-shadow: 0 0 12px rgba(6,255,165,0.3); }
+  .btn-play.active { background: rgba(6,255,165,0.2); box-shadow: 0 0 16px rgba(6,255,165,0.5); }
+ 
+  .btn-stop  { border-color: var(--kick);   color: var(--kick); }
+  .btn-stop:hover  { background: rgba(255,107,53,0.15); }
+ 
+  .btn-rand  { border-color: var(--arp);    color: var(--arp); }
+  .btn-rand:hover  { background: rgba(255,60,172,0.15); box-shadow: 0 0 10px rgba(255,60,172,0.3); }
+ 
+  .btn-clear { border-color: var(--text-dim); }
+  .btn-clear:hover { border-color: var(--snare); color: var(--snare); }
+ 
+  /* BPM control */
+  .bpm-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .bpm-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+  }
+  #bpmDisplay {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--snare);
+    text-shadow: 0 0 8px var(--snare);
+    min-width: 42px;
+    text-align: center;
+  }
+  .bpm-btn {
+    background: var(--dim);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 14px;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.1s;
+  }
+  .bpm-btn:hover { background: #222235; color: var(--snare); border-color: var(--snare); }
+ 
+  /* Steps toggle */
+  .steps-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .steps-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+  .steps-btn {
+    background: var(--dim);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .steps-btn.active { border-color: var(--melody); color: var(--melody); background: rgba(0,245,255,0.1); }
+ 
+  /* Swing */
+  .swing-group { display: flex; align-items: center; gap: 6px; }
+  .swing-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+  #swingToggle {
+    width: 34px; height: 18px;
+    background: var(--dim);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+  }
+  #swingToggle::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: all 0.2s;
+  }
+  #swingToggle.active { background: rgba(255,60,172,0.2); border-color: var(--arp); }
+  #swingToggle.active::after { left: 18px; background: var(--arp); box-shadow: 0 0 6px var(--arp); }
+ 
+  /* Master volume */
+  .mvol-group { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+  .mvol-label { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+  #masterVol { width: 80px; }
+ 
+  /* ============================================================
+     MAIN GRID AREA
+  ============================================================ */
+  #sequencer {
+    padding: 10px 12px 20px;
+  }
+ 
+  /* Section headers */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0 4px;
+    padding-left: var(--label-w);
+  }
+  .section-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+ 
+  /* The grid wrapper holds labels + cells + vol */
+  .grid-wrapper {
+    position: relative;
+  }
+ 
+  /* Playhead overlay — sits over cells */
+  #playheadEl {
+    position: absolute;
+    top: 0;
+    left: var(--label-w);
+    width: var(--cell-w);
+    background: rgba(255,255,255,0.12);
+    border-left: 2px solid rgba(255,255,255,0.9);
+    border-right: 1px solid rgba(255,255,255,0.3);
+    box-shadow: 0 0 10px rgba(255,255,255,0.4), 0 0 30px rgba(255,255,255,0.15);
+    pointer-events: none;
+    z-index: 10;
+    transition: none;
+  }
+ 
+  /* A single row */
+  .row {
+    display: flex;
+    align-items: center;
+    height: calc(var(--cell-h) + 2px);
+    margin-bottom: 1px;
+    position: relative;
+  }
+ 
+  /* Row label */
+  .row-label {
+    width: var(--label-w);
+    flex-shrink: 0;
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    text-align: right;
+    padding-right: 6px;
+    white-space: nowrap;
+  }
+ 
+  /* Cells container */
+  .cells {
+    display: flex;
+    gap: 1px;
+    flex: 1;
+  }
+ 
+  /* Individual cell */
+  .cell {
+    width: var(--cell-w);
+    height: var(--cell-h);
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.05s, box-shadow 0.05s;
+    position: relative;
+    background: var(--dim);
+    border: 1px solid var(--border);
+  }
+  /* Beat group separators — beat groups of 4 */
+  .cell:nth-child(4n+1) { margin-left: 3px; }
+  .cell:first-child { margin-left: 0; }
+ 
+  /* Active state — varies by instrument color via data-color */
+  .cell.on[data-color="melody"]  { background: var(--melody);  border-color: var(--melody);  box-shadow: 0 0 8px var(--melody),  0 0 2px var(--melody); }
+  .cell.on[data-color="bass"]    { background: var(--bass);    border-color: var(--bass);    box-shadow: 0 0 8px var(--bass),    0 0 2px var(--bass); }
+  .cell.on[data-color="kick"]    { background: var(--kick);    border-color: var(--kick);    box-shadow: 0 0 8px var(--kick),    0 0 2px var(--kick); }
+  .cell.on[data-color="snare"]   { background: var(--snare);   border-color: var(--snare);   box-shadow: 0 0 8px var(--snare),   0 0 2px var(--snare); }
+  .cell.on[data-color="hat"]     { background: var(--hat);     border-color: var(--hat);     box-shadow: 0 0 8px var(--hat),     0 0 2px var(--hat); }
+  .cell.on[data-color="arp"]     { background: var(--arp);     border-color: var(--arp);     box-shadow: 0 0 8px var(--arp),     0 0 2px var(--arp); }
+ 
+  /* Active cell pulse animation */
+  @keyframes cellPulse {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.75; }
+    100% { opacity: 1; }
+  }
+  .cell.on { animation: cellPulse 1.2s ease-in-out infinite; }
+ 
+  /* Triggered flash when the step fires */
+  .cell.flash[data-color="melody"]  { background: #fff !important; box-shadow: 0 0 16px var(--melody), 0 0 32px var(--melody) !important; }
+  .cell.flash[data-color="bass"]    { background: #fff !important; box-shadow: 0 0 16px var(--bass),   0 0 32px var(--bass)   !important; }
+  .cell.flash[data-color="kick"]    { background: #fff !important; box-shadow: 0 0 16px var(--kick),   0 0 32px var(--kick)   !important; }
+  .cell.flash[data-color="snare"]   { background: #fff !important; box-shadow: 0 0 16px var(--snare),  0 0 32px var(--snare)  !important; }
+  .cell.flash[data-color="hat"]     { background: #fff !important; box-shadow: 0 0 16px var(--hat),    0 0 32px var(--hat)    !important; }
+  .cell.flash[data-color="arp"]     { background: #fff !important; box-shadow: 0 0 16px var(--arp),    0 0 32px var(--arp)    !important; }
+ 
+  /* Volume slider */
+  .vol-wrap {
+    width: var(--vol-w);
+    flex-shrink: 0;
+    padding-left: 6px;
+    display: flex;
+    align-items: center;
+  }
+ 
+  /* ============================================================
+     RANGE SLIDER STYLES
+  ============================================================ */
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    width: 100%;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  input[type=range]:hover::-webkit-slider-thumb { background: #fff; box-shadow: 0 0 6px #fff; }
+ 
+  /* Section-colored thumbs */
+  .vol-melody input[type=range]::-webkit-slider-thumb { background: var(--melody); }
+  .vol-bass   input[type=range]::-webkit-slider-thumb { background: var(--bass);   }
+  .vol-kick   input[type=range]::-webkit-slider-thumb { background: var(--kick);   }
+  .vol-snare  input[type=range]::-webkit-slider-thumb { background: var(--snare);  }
+  .vol-hat    input[type=range]::-webkit-slider-thumb { background: var(--hat);    }
+  .vol-arp    input[type=range]::-webkit-slider-thumb { background: var(--arp);    }
+ 
+  /* ============================================================
+     SAVE / LOAD SECTION
+  ============================================================ */
+  #saveload {
+    margin: 16px 12px 24px;
+    padding: 10px 14px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .sl-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+  }
+  #patternInput {
+    flex: 1;
+    min-width: 160px;
+    background: var(--dim);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 5px 8px;
+    outline: none;
+  }
+  #patternInput:focus { border-color: var(--melody); }
+  #saveMsg {
+    font-size: 10px;
+    color: var(--hat);
+    min-width: 120px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+ 
+  /* ============================================================
+     SECTION COLOR LABELS
+  ============================================================ */
+  .section-name.melody-col { color: var(--melody); text-shadow: 0 0 8px var(--melody); }
+  .section-name.bass-col   { color: var(--bass);   text-shadow: 0 0 8px var(--bass);   }
+  .section-name.drums-col  { color: var(--kick);   text-shadow: 0 0 8px var(--kick);   }
+  .section-name.hat-col    { color: var(--hat);    text-shadow: 0 0 8px var(--hat);    }
+  .section-name.arp-col    { color: var(--arp);    text-shadow: 0 0 8px var(--arp);    }
+ 
+  /* Volume section row labels colored */
+  .row-label.melody-lbl { color: rgba(0,245,255,0.7); }
+  .row-label.bass-lbl   { color: rgba(168,85,247,0.7); }
+  .row-label.kick-lbl   { color: rgba(255,107,53,0.7); }
+  .row-label.snare-lbl  { color: rgba(255,210,63,0.7); }
+  .row-label.hat-lbl    { color: rgba(6,255,165,0.7); }
+  .row-label.arp-lbl    { color: rgba(255,60,172,0.7); }
+ 
+  /* ============================================================
+     BEAT NUMBER HEADER
+  ============================================================ */
+  #beatHeader {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+    padding-left: var(--label-w);
+  }
+  .beat-num {
+    width: var(--cell-w);
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 8px;
+    color: var(--text-dim);
+  }
+  .beat-num.beat-1 { color: rgba(255,255,255,0.4); font-weight: bold; }
+  .beat-num:nth-child(4n+1) { margin-left: 3px; }
+  .beat-num:first-child { margin-left: 0; }
+ 
+  /* ============================================================
+     FOOTER
+  ============================================================ */
+  #footer {
+    text-align: center;
+    padding: 12px;
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+ 
+<!-- ============================================================
+     TRANSPORT BAR
+============================================================ -->
+<div id="transport">
+  <div>
+    <div class="app-title">CHIPBEAT</div>
+    <div class="app-subtitle">8-BIT STEP SEQUENCER</div>
+  </div>
+ 
+  <div class="sep"></div>
+ 
+  <button class="btn btn-play" id="playBtn" onclick="togglePlay()">▶ PLAY</button>
+  <button class="btn btn-stop" onclick="stopSeq()">■ STOP</button>
+ 
+  <div class="sep"></div>
+ 
+  <div class="bpm-group">
+    <span class="bpm-label">BPM</span>
+    <button class="bpm-btn" onclick="changeBpm(-5)">−</button>
+    <span id="bpmDisplay">120</span>
+    <button class="bpm-btn" onclick="changeBpm(5)">+</button>
+  </div>
+  <input type="range" id="bpmSlider" min="60" max="200" value="120"
+         style="width:80px" oninput="setBpm(+this.value)">
+ 
+  <div class="sep"></div>
+ 
+  <div class="steps-group">
+    <span class="steps-label">STEPS</span>
+    <button class="steps-btn active" id="steps16btn" onclick="setSteps(16)">16</button>
+    <button class="steps-btn"        id="steps32btn" onclick="setSteps(32)">32</button>
+  </div>
+ 
+  <div class="sep"></div>
+ 
+  <div class="swing-group">
+    <span class="swing-label">SWING</span>
+    <div id="swingToggle" onclick="toggleSwing()"></div>
+  </div>
+ 
+  <div class="sep"></div>
+ 
+  <button class="btn btn-rand" onclick="randomize()">⚂ RAND</button>
+  <button class="btn btn-clear" onclick="clearAll()">✕ CLEAR</button>
+ 
+  <div class="mvol-group">
+    <span class="mvol-label">VOL</span>
+    <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.75"
+           oninput="setMasterVol(+this.value)">
+  </div>
+</div>
+ 
+<!-- ============================================================
+     SEQUENCER GRID
+============================================================ -->
+<div id="sequencer">
+  <div id="beatHeader"></div>
+  <div class="grid-wrapper" id="gridWrapper">
+    <div id="playheadEl"></div>
+    <!-- rows injected by JS -->
+  </div>
+</div>
+ 
+<!-- ============================================================
+     SAVE / LOAD
+============================================================ -->
+<div id="saveload">
+  <span class="sl-label">PATTERN</span>
+  <button class="btn" onclick="savePattern()">SAVE ↗</button>
+  <input type="text" id="patternInput" placeholder="paste pattern code here…">
+  <button class="btn" onclick="loadPattern()">LOAD ↙</button>
+  <span id="saveMsg"></span>
+</div>
+ 
+<div id="footer">CHIPBEAT v1.0 &nbsp;·&nbsp; WEB AUDIO API &nbsp;·&nbsp; NO DEPS</div>
+ 
+<script>
+// ================================================================
+//  CHIPBEAT — 8-bit Step Sequencer
+//  Web Audio API scheduler pattern with lookahead timing
+// ================================================================
+ 
+/* ----------------------------------------------------------
+   INSTRUMENT DEFINITIONS
+   Each instrument: id, label, color key, note rows, wave, synthesis params
+---------------------------------------------------------- */
+const INSTRUMENTS = [
+  {
+    id: 'melody', label: 'MELODY', colorKey: 'melody',
+    rows: [
+      { label: 'C5',  freq: 523.25 }, { label: 'B4',  freq: 493.88 },
+      { label: 'A4',  freq: 440.00 }, { label: 'G4',  freq: 392.00 },
+      { label: 'F4',  freq: 349.23 }, { label: 'E4',  freq: 329.63 },
+      { label: 'D4',  freq: 293.66 }, { label: 'C4',  freq: 261.63 },
+      { label: 'B3',  freq: 246.94 }, { label: 'A3',  freq: 220.00 },
+      { label: 'G3',  freq: 196.00 }, { label: 'F3',  freq: 174.61 },
+      { label: 'E3',  freq: 164.81 }, { label: 'D3',  freq: 146.83 },
+      { label: 'C3',  freq: 130.81 }, { label: 'B2',  freq: 123.47 },
+    ],
+    wave: 'square', defaultVol: 0.4,
+  },
+  {
+    id: 'bass', label: 'BASS', colorKey: 'bass',
+    rows: [
+      { label: 'C3',  freq: 130.81 }, { label: 'B2',  freq: 123.47 },
+      { label: 'A2',  freq: 110.00 }, { label: 'G2',  freq:  98.00 },
+      { label: 'F2',  freq:  87.31 }, { label: 'E2',  freq:  82.41 },
+      { label: 'D2',  freq:  73.42 }, { label: 'C2',  freq:  65.41 },
+    ],
+    wave: 'triangle', defaultVol: 0.55,
+  },
+  {
+    id: 'arp', label: 'ARP', colorKey: 'arp',
+    rows: [
+      { label: 'C6',  freq: 1046.5 }, { label: 'A5',  freq: 880.0  },
+      { label: 'G5',  freq: 784.0  }, { label: 'E5',  freq: 659.3  },
+      { label: 'D5',  freq: 587.3  }, { label: 'C5',  freq: 523.25 },
+      { label: 'A4',  freq: 440.0  }, { label: 'G4',  freq: 392.0  },
+    ],
+    wave: 'sawtooth', defaultVol: 0.3,
+  },
+  {
+    id: 'kick', label: 'KICK', colorKey: 'kick',
+    rows: [ { label: 'KICK', freq: null } ],
+    wave: 'kick', defaultVol: 0.7,
+  },
+  {
+    id: 'snare', label: 'SNARE', colorKey: 'snare',
+    rows: [ { label: 'SNARE', freq: null } ],
+    wave: 'snare', defaultVol: 0.5,
+  },
+  {
+    id: 'hat', label: 'HATS', colorKey: 'hat',
+    rows: [
+      { label: 'H.HAT', freq: null },
+      { label: 'O.HAT', freq: null },
+    ],
+    wave: 'hat', defaultVol: 0.4,
+  },
+];
+ 
+/* ----------------------------------------------------------
+   STATE
+---------------------------------------------------------- */
+let numSteps   = 16;
+let bpm        = 120;
+let isPlaying  = false;
+let swingOn    = false;
+let currentStep= 0;
+let masterGain = null;
+ 
+// grid[instrumentId][rowIndex][stepIndex] = true/false
+const grid = {};
+// volume gainNodes per instrument
+const volNodes = {};
+ 
+// Scheduler state
+let audioCtx         = null;
+let nextNoteTime     = 0.0;
+let scheduleAheadTime= 0.1;   // seconds to look ahead
+let lookaheadMs      = 25;    // how often to call scheduler (ms)
+let schedulerTimer   = null;
+let lastScheduledStep= -1;
+ 
+// DOM cell references: cells[instId][rowIdx][stepIdx]
+const cells = {};
+ 
+/* ----------------------------------------------------------
+   AUDIO CONTEXT INIT (lazy — user gesture required)
+---------------------------------------------------------- */
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.75;
+  masterGain.connect(audioCtx.destination);
+ 
+  // Per-instrument gain nodes
+  INSTRUMENTS.forEach(inst => {
+    const g = audioCtx.createGain();
+    g.gain.value = inst.defaultVol;
+    g.connect(masterGain);
+    volNodes[inst.id] = g;
+  });
+}
+ 
+/* ----------------------------------------------------------
+   SOUND SYNTHESIS
+---------------------------------------------------------- */
+function playNote(instId, rowData, time, stepDuration) {
+  if (!audioCtx) return;
+  const dest = volNodes[instId];
+ 
+  switch(instId) {
+    case 'melody':
+    case 'bass':
+    case 'arp': {
+      const inst = INSTRUMENTS.find(i => i.id === instId);
+      const osc  = audioCtx.createOscillator();
+      const env  = audioCtx.createGain();
+      osc.type = inst.wave;
+      osc.frequency.value = rowData.freq;
+      // gentle detune for character
+      osc.detune.value = (Math.random() - 0.5) * 4;
+      env.gain.setValueAtTime(0.001, time);
+      env.gain.linearRampToValueAtTime(1.0, time + 0.005);
+      env.gain.exponentialRampToValueAtTime(0.3, time + stepDuration * 0.5);
+      env.gain.exponentialRampToValueAtTime(0.001, time + stepDuration * 0.95);
+      osc.connect(env);
+      env.connect(dest);
+      osc.start(time);
+      osc.stop(time + stepDuration);
+      break;
+    }
+    case 'kick': {
+      const osc  = audioCtx.createOscillator();
+      const env  = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(150, time);
+      osc.frequency.exponentialRampToValueAtTime(40, time + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(30, time + 0.15);
+      env.gain.setValueAtTime(1.0, time);
+      env.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+      osc.connect(env);
+      env.connect(dest);
+      osc.start(time);
+      osc.stop(time + 0.25);
+      break;
+    }
+    case 'snare': {
+      // noise burst + tonal body
+      const bufSize = audioCtx.sampleRate * 0.15;
+      const buf     = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+      const data    = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+ 
+      const noise   = audioCtx.createBufferSource();
+      const noiseEnv= audioCtx.createGain();
+      const filter  = audioCtx.createBiquadFilter();
+      noise.buffer  = buf;
+      filter.type   = 'highpass';
+      filter.frequency.value = 1800;
+      noiseEnv.gain.setValueAtTime(0.8, time);
+      noiseEnv.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+      noise.connect(filter);
+      filter.connect(noiseEnv);
+      noiseEnv.connect(dest);
+      noise.start(time);
+      noise.stop(time + 0.15);
+ 
+      // tonal snap
+      const snapOsc = audioCtx.createOscillator();
+      const snapEnv = audioCtx.createGain();
+      snapOsc.type = 'sine';
+      snapOsc.frequency.setValueAtTime(250, time);
+      snapOsc.frequency.exponentialRampToValueAtTime(100, time + 0.05);
+      snapEnv.gain.setValueAtTime(0.5, time);
+      snapEnv.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
+      snapOsc.connect(snapEnv);
+      snapEnv.connect(dest);
+      snapOsc.start(time);
+      snapOsc.stop(time + 0.07);
+      break;
+    }
+    case 'hat': {
+      const isOpen  = rowData.label === 'O.HAT';
+      const bufSize = audioCtx.sampleRate * (isOpen ? 0.2 : 0.05);
+      const buf     = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+      const data    = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+ 
+      const noise  = audioCtx.createBufferSource();
+      const filter = audioCtx.createBiquadFilter();
+      const env    = audioCtx.createGain();
+      noise.buffer = buf;
+      filter.type  = 'highpass';
+      filter.frequency.value = 7000;
+      const decay  = isOpen ? 0.18 : 0.04;
+      env.gain.setValueAtTime(0.7, time);
+      env.gain.exponentialRampToValueAtTime(0.001, time + decay);
+      noise.connect(filter);
+      filter.connect(env);
+      env.connect(dest);
+      noise.start(time);
+      noise.stop(time + decay + 0.01);
+      break;
+    }
+  }
+}
+ 
+/* ----------------------------------------------------------
+   SCHEDULER — the heart of the sequencer
+   Runs every `lookaheadMs` ms, schedules notes up to
+   `scheduleAheadTime` seconds ahead.
+---------------------------------------------------------- */
+function scheduler() {
+  const secondsPerBeat= 60.0 / bpm;
+  const secondsPerStep= secondsPerBeat / 4;  // 16th notes
+ 
+  while (nextNoteTime < audioCtx.currentTime + scheduleAheadTime) {
+    scheduleStep(currentStep, nextNoteTime, secondsPerStep);
+ 
+    // Swing: delay even steps slightly
+    let advance = secondsPerStep;
+    if (swingOn && currentStep % 2 === 1) {
+      advance += secondsPerStep * 0.08;
+    }
+ 
+    currentStep = (currentStep + 1) % numSteps;
+    nextNoteTime += advance;
+  }
+}
+ 
+function scheduleStep(step, time, duration) {
+  // For each instrument & row, check if cell is on
+  INSTRUMENTS.forEach(inst => {
+    inst.rows.forEach((rowData, rowIdx) => {
+      if (grid[inst.id][rowIdx][step]) {
+        playNote(inst.id, rowData, time, duration);
+      }
+    });
+  });
+ 
+  // Flash visual at this time (approximate via timeout)
+  const delay = (time - audioCtx.currentTime) * 1000;
+  setTimeout(() => flashStep(step), Math.max(0, delay));
+}
+ 
+/* Flash the active cells in the current step */
+function flashStep(step) {
+  INSTRUMENTS.forEach(inst => {
+    inst.rows.forEach((rowData, rowIdx) => {
+      if (grid[inst.id][rowIdx][step]) {
+        const cell = cells[inst.id]?.[rowIdx]?.[step];
+        if (cell) {
+          cell.classList.add('flash');
+          setTimeout(() => cell.classList.remove('flash'), 80);
+        }
+      }
+    });
+  });
+}
+ 
+/* ----------------------------------------------------------
+   PLAYHEAD ANIMATION (requestAnimationFrame)
+---------------------------------------------------------- */
+let rafId = null;
+let playheadStep = -1;
+ 
+function animatePlayhead() {
+  if (!isPlaying) return;
+  // Compute which step the audio is on right now
+  const secondsPerBeat = 60.0 / bpm;
+  const secondsPerStep = secondsPerBeat / 4;
+  // The audio is scheduled ahead; walk back to current position
+  const elapsed = audioCtx.currentTime;
+  // We track currentStep but it's ahead; approximate visual step
+  const stepsAhead = Math.round(scheduleAheadTime / secondsPerStep);
+  const visualStep = ((currentStep - stepsAhead) % numSteps + numSteps) % numSteps;
+ 
+  if (visualStep !== playheadStep) {
+    playheadStep = visualStep;
+    updatePlayheadPosition(visualStep);
+  }
+ 
+  rafId = requestAnimationFrame(animatePlayhead);
+}
+ 
+function updatePlayheadPosition(step) {
+  const ph = document.getElementById('playheadEl');
+  const cellW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-w'));
+  // Account for group gap every 4 steps
+  const groupOffset = Math.floor(step / 4) * 3;
+  const x = step * (cellW + 1) + groupOffset;
+  ph.style.left = `calc(var(--label-w) + ${x}px)`;
+}
+ 
+/* ----------------------------------------------------------
+   TRANSPORT CONTROLS
+---------------------------------------------------------- */
+function togglePlay() {
+  if (isPlaying) {
+    pauseSeq();
+  } else {
+    playSeq();
+  }
+}
+ 
+function playSeq() {
+  initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  isPlaying = true;
+  nextNoteTime = audioCtx.currentTime + 0.05;
+  schedulerTimer = setInterval(scheduler, lookaheadMs);
+  document.getElementById('playBtn').textContent = '⏸ PAUSE';
+  document.getElementById('playBtn').classList.add('active');
+  rafId = requestAnimationFrame(animatePlayhead);
+}
+ 
+function pauseSeq() {
+  isPlaying = false;
+  clearInterval(schedulerTimer);
+  cancelAnimationFrame(rafId);
+  document.getElementById('playBtn').textContent = '▶ PLAY';
+  document.getElementById('playBtn').classList.remove('active');
+}
+ 
+function stopSeq() {
+  pauseSeq();
+  currentStep  = 0;
+  playheadStep = -1;
+  updatePlayheadPosition(0);
+}
+ 
+/* ----------------------------------------------------------
+   BPM
+---------------------------------------------------------- */
+function setBpm(val) {
+  bpm = Math.min(200, Math.max(60, val));
+  document.getElementById('bpmDisplay').textContent = bpm;
+  document.getElementById('bpmSlider').value = bpm;
+}
+ 
+function changeBpm(delta) {
+  setBpm(bpm + delta);
+}
+ 
+/* ----------------------------------------------------------
+   STEPS 16 / 32
+---------------------------------------------------------- */
+function setSteps(n) {
+  const wasPlaying = isPlaying;
+  if (wasPlaying) pauseSeq();
+  numSteps = n;
+  // Rebuild grid columns for new step count
+  INSTRUMENTS.forEach(inst => {
+    inst.rows.forEach((_, rowIdx) => {
+      const old = grid[inst.id][rowIdx];
+      const newRow = new Array(n).fill(false);
+      for (let i = 0; i < Math.min(old.length, n); i++) newRow[i] = old[i];
+      grid[inst.id][rowIdx] = newRow;
+    });
+  });
+  rebuildGrid();
+  if (wasPlaying) { currentStep = 0; playSeq(); }
+ 
+  document.getElementById('steps16btn').classList.toggle('active', n === 16);
+  document.getElementById('steps32btn').classList.toggle('active', n === 32);
+}
+ 
+/* ----------------------------------------------------------
+   SWING
+---------------------------------------------------------- */
+function toggleSwing() {
+  swingOn = !swingOn;
+  document.getElementById('swingToggle').classList.toggle('active', swingOn);
+}
+ 
+/* ----------------------------------------------------------
+   MASTER VOLUME
+---------------------------------------------------------- */
+function setMasterVol(val) {
+  if (masterGain) masterGain.gain.value = val;
+}
+ 
+/* ----------------------------------------------------------
+   RANDOMIZE — musically sensible pattern
+---------------------------------------------------------- */
+function randomize() {
+  // Clear first
+  INSTRUMENTS.forEach(inst => {
+    inst.rows.forEach((_, rowIdx) => {
+      grid[inst.id][rowIdx] = new Array(numSteps).fill(false);
+    });
+  });
+ 
+  // Kick: beats 1, 9 (and optionally 5 if fills)
+  const kickRow = grid['kick'][0];
+  kickRow[0] = true;
+  kickRow[8] = true;
+  if (Math.random() > 0.5) kickRow[4] = true;
+  if (Math.random() > 0.7) kickRow[12] = true;
+ 
+  // Snare: beats 5, 13
+  const snareRow = grid['snare'][0];
+  snareRow[4] = true;
+  snareRow[12] = true;
+  if (Math.random() > 0.7) snareRow[2 + Math.floor(Math.random()*2)*2] = true;
+ 
+  // Hi-hat: every 2 steps (closed), random opens
+  const closedHat = grid['hat'][0];
+  const openHat   = grid['hat'][1];
+  for (let s = 0; s < numSteps; s++) {
+    if (s % 2 === 0) closedHat[s] = Math.random() > 0.2;
+  }
+  openHat[6]  = Math.random() > 0.5;
+  openHat[14] = Math.random() > 0.5;
+ 
+  // Melody: ~30% density, prefer same note repeated with gaps
+  const melodyNotes = [0,2,4,7,9]; // pentatonic indices
+  grid['melody'].forEach((row, rowIdx) => {
+    if (!melodyNotes.includes(rowIdx % 7)) return;
+    for (let s = 0; s < numSteps; s++) {
+      row[s] = Math.random() < 0.28;
+    }
+  });
+ 
+  // Bass: root note (C), sparse
+  const bassRow = grid['bass'][7]; // C2
+  [0, 4, 8, 12].forEach(s => { bassRow[s] = Math.random() > 0.3; });
+  if (Math.random() > 0.5) grid['bass'][4][6] = true; // passing note
+ 
+  // Arp: fast pattern on high notes
+  const arpNotes = [0, 2, 5]; // C6, G5, C5
+  arpNotes.forEach(rowIdx => {
+    for (let s = 0; s < numSteps; s++) {
+      grid['arp'][rowIdx][s] = Math.random() < 0.35;
+    }
+  });
+ 
+  refreshAllCells();
+  autoSave();
+}
+ 
+/* ----------------------------------------------------------
+   CLEAR
+---------------------------------------------------------- */
+function clearAll() {
+  INSTRUMENTS.forEach(inst => {
+    inst.rows.forEach((_, rowIdx) => {
+      grid[inst.id][rowIdx] = new Array(numSteps).fill(false);
+    });
+  });
+  refreshAllCells();
+  autoSave();
+}
+ 
+/* ----------------------------------------------------------
+   SAVE / LOAD
+---------------------------------------------------------- */
+function serializePattern() {
+  // Encode each cell as a bit, pack into base64-like string
+  let bits = '';
+  INSTRUMENTS.forEach(inst => {
+    inst.rows.forEach((_, rowIdx) => {
+      for (let s = 0; s < numSteps; s++) {
+        bits += grid[inst.id][rowIdx][s] ? '1' : '0';
+      }
+    });
+  });
+  // Pack bits into hex
+  let hex = '';
+  for (let i = 0; i < bits.length; i += 4) {
+    hex += parseInt(bits.slice(i, i+4).padEnd(4,'0'), 2).toString(16);
+  }
+  return `${numSteps}:${bpm}:${hex}`;
+}
+ 
+function deserializePattern(str) {
+  try {
+    const parts = str.trim().split(':');
+    if (parts.length < 3) return false;
+    const steps = parseInt(parts[0]);
+    const bpmVal= parseInt(parts[1]);
+    const hex   = parts[2];
+ 
+    // Unpack hex to bits
+    let bits = '';
+    for (const ch of hex) {
+      bits += parseInt(ch, 16).toString(2).padStart(4, '0');
+    }
+ 
+    // Set steps and BPM
+    numSteps = steps;
+    setBpm(bpmVal);
+ 
+    // Rebuild grid
+    INSTRUMENTS.forEach(inst => {
+      inst.rows.forEach((_, rowIdx) => {
+        grid[inst.id][rowIdx] = new Array(numSteps).fill(false);
+      });
+    });
+ 
+    let idx = 0;
+    INSTRUMENTS.forEach(inst => {
+      inst.rows.forEach((_, rowIdx) => {
+        for (let s = 0; s < numSteps; s++) {
+          grid[inst.id][rowIdx][s] = bits[idx++] === '1';
+        }
+      });
+    });
+ 
+    rebuildGrid();
+    document.getElementById('steps16btn').classList.toggle('active', numSteps === 16);
+    document.getElementById('steps32btn').classList.toggle('active', numSteps === 32);
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+ 
+function savePattern() {
+  const code = serializePattern();
+  document.getElementById('patternInput').value = code;
+  try { navigator.clipboard.writeText(code); } catch(e) {}
+  showMsg('COPIED TO CLIPBOARD ✓');
+  autoSave();
+}
+ 
+function loadPattern() {
+  const val = document.getElementById('patternInput').value;
+  if (deserializePattern(val)) {
+    showMsg('PATTERN LOADED ✓');
+    autoSave();
+  } else {
+    showMsg('INVALID PATTERN ✗');
+  }
+}
+ 
+function autoSave() {
+  try { localStorage.setItem('chipbeat_pattern', serializePattern()); } catch(e) {}
+}
+ 
+function autoLoad() {
+  try {
+    const saved = localStorage.getItem('chipbeat_pattern');
+    if (saved) deserializePattern(saved);
+  } catch(e) {}
+}
+ 
+function showMsg(txt) {
+  const el = document.getElementById('saveMsg');
+  el.textContent = txt;
+  el.style.opacity = '1';
+  setTimeout(() => { el.style.opacity = '0'; }, 2500);
+}
+ 
+/* ----------------------------------------------------------
+   GRID DOM CONSTRUCTION
+---------------------------------------------------------- */
+function initGrid() {
+  // Initialize data structure
+  INSTRUMENTS.forEach(inst => {
+    grid[inst.id] = inst.rows.map(() => new Array(numSteps).fill(false));
+    cells[inst.id] = inst.rows.map(() => []);
+  });
+}
+ 
+function buildBeatHeader() {
+  const hdr = document.getElementById('beatHeader');
+  hdr.innerHTML = '';
+  // Spacer for label width
+  // (padding-left handles it)
+  for (let s = 0; s < numSteps; s++) {
+    const d = document.createElement('div');
+    d.className = 'beat-num' + (s % 4 === 0 ? ' beat-1' : '');
+    d.textContent = s % 4 === 0 ? (s/4+1) : '·';
+    hdr.appendChild(d);
+  }
+}
+ 
+function buildSequencerRows() {
+  const wrapper = document.getElementById('gridWrapper');
+  // Remove all row-related children (keep playhead)
+  Array.from(wrapper.querySelectorAll('.section-header, .row')).forEach(el => el.remove());
+ 
+  // Compute total height for playhead
+  let totalRows = INSTRUMENTS.reduce((sum, inst) => sum + inst.rows.length, 0);
+ 
+  INSTRUMENTS.forEach(inst => {
+    // Section header
+    const hdr = document.createElement('div');
+    hdr.className = 'section-header';
+    hdr.innerHTML = `
+      <span class="section-name ${inst.colorKey}-col">${inst.label}</span>
+      <div class="section-line"></div>
+    `;
+    wrapper.appendChild(hdr);
+ 
+    // Rows
+    inst.rows.forEach((rowData, rowIdx) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+ 
+      // Label
+      const lbl = document.createElement('div');
+      lbl.className = `row-label ${inst.colorKey}-lbl`;
+      lbl.textContent = rowData.label;
+      row.appendChild(lbl);
+ 
+      // Cells
+      const cellsDiv = document.createElement('div');
+      cellsDiv.className = 'cells';
+      cells[inst.id][rowIdx] = [];
+ 
+      for (let s = 0; s < numSteps; s++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.color = inst.colorKey;
+        cell.dataset.inst  = inst.id;
+        cell.dataset.row   = rowIdx;
+        cell.dataset.step  = s;
+        cell.addEventListener('mousedown', onCellMousedown);
+        cell.addEventListener('mouseenter', onCellMouseenter);
+        cellsDiv.appendChild(cell);
+        cells[inst.id][rowIdx][s] = cell;
+      }
+      row.appendChild(cellsDiv);
+ 
+      // Volume slider (shared per instrument, only on first row)
+      const volDiv = document.createElement('div');
+      volDiv.className = `vol-wrap vol-${inst.colorKey}`;
+      if (rowIdx === 0) {
+        const slider = document.createElement('input');
+        slider.type = 'range';
+        slider.min = 0; slider.max = 1; slider.step = 0.01;
+        slider.value = inst.defaultVol;
+        slider.dataset.inst = inst.id;
+        slider.addEventListener('input', function() {
+          if (volNodes[this.dataset.inst]) {
+            volNodes[this.dataset.inst].gain.value = +this.value;
+          }
+        });
+        volDiv.appendChild(slider);
+      }
+      row.appendChild(volDiv);
+ 
+      wrapper.appendChild(row);
+    });
+  });
+ 
+  // Set playhead height
+  const ph = document.getElementById('playheadEl');
+  ph.style.height = wrapper.offsetHeight + 'px';
+  // Recalc after layout
+  requestAnimationFrame(() => {
+    ph.style.height = wrapper.scrollHeight + 'px';
+  });
+}
+ 
+function rebuildGrid() {
+  buildBeatHeader();
+  buildSequencerRows();
+  refreshAllCells();
+  updatePlayheadPosition(Math.max(0, playheadStep));
+}
+ 
+/* ----------------------------------------------------------
+   CELL INTERACTION — drag-to-paint
+---------------------------------------------------------- */
+let isDragging    = false;
+let paintMode     = null; // true = paint on, false = paint off
+ 
+document.addEventListener('mousedown', () => { isDragging = true; });
+document.addEventListener('mouseup',   () => { isDragging = false; paintMode = null; });
+ 
+function onCellMousedown(e) {
+  e.preventDefault();
+  const inst  = this.dataset.inst;
+  const row   = +this.dataset.row;
+  const step  = +this.dataset.step;
+  const newVal= !grid[inst][row][step];
+  paintMode = newVal;
+  setCell(inst, row, step, newVal);
+  autoSave();
+}
+ 
+function onCellMouseenter() {
+  if (!isDragging || paintMode === null) return;
+  const inst = this.dataset.inst;
+  const row  = +this.dataset.row;
+  const step = +this.dataset.step;
+  setCell(inst, row, step, paintMode);
+  autoSave();
+}
+ 
+function setCell(inst, row, step, val) {
+  grid[inst][row][step] = val;
+  const cell = cells[inst][row][step];
+  if (cell) {
+    cell.classList.toggle('on', val);
+  }
+}
+ 
+function refreshAllCells() {
+  INSTRUMENTS.forEach(inst => {
+    inst.rows.forEach((_, rowIdx) => {
+      for (let s = 0; s < numSteps; s++) {
+        const cell = cells[inst.id][rowIdx][s];
+        if (cell) cell.classList.toggle('on', grid[inst.id][rowIdx][s]);
+      }
+    });
+  });
+}
+ 
+/* ----------------------------------------------------------
+   INIT
+---------------------------------------------------------- */
+function init() {
+  initGrid();
+  buildBeatHeader();
+  buildSequencerRows();
+  autoLoad();
+  refreshAllCells();
+  updatePlayheadPosition(0);
+ 
+  // Set --cell-w dynamically for 32-step mode if needed
+  document.getElementById('steps16btn').classList.add('active');
+}
+ 
+init();
+</script>
+</body>
+</html>
