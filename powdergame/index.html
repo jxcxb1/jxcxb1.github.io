@@ -20,30 +20,29 @@
   #dotcount { color: #ffcc00; font-weight: bold; }
  
   /* MAIN AREA */
-  #main { display: flex; flex: 1; overflow: hidden; }
+  #main { display: flex; flex: 1; overflow: hidden; position: relative; }
  
-  /* LEFT SIDEBAR — expands to fill space left of canvas */
+  /* LEFT SIDEBAR — absolute overlay, doesn't affect canvas layout */
   #sidebar {
-    background: #161616; border-right: 1px solid #2a2a2a;
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 90px;
+    background: #161616ee; border-right: 1px solid #2a2a2a;
     display: flex; flex-direction: column; align-items: center;
-    padding: 8px 6px; gap: 6px; flex-shrink: 0; z-index: 10;
-    overflow-y: auto; overflow-x: hidden;
-    /* width set dynamically by JS */
-    width: 80px;
+    padding: 6px 5px; gap: 4px; z-index: 10;
+    overflow: hidden;
   }
   .sidebar-label {
     font-size: 9px; color: #555; text-transform: uppercase;
-    letter-spacing: 1px; margin-top: 2px; white-space: nowrap;
+    letter-spacing: 1px; white-space: nowrap; flex-shrink: 0;
   }
  
   /* ELEMENT SLOTS */
   .elem-slot {
-    border: 2px solid #3a3a3a;
-    background: #1e1e1e; cursor: pointer; display: flex;
-    flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px; border-radius: 5px; transition: border-color 0.15s;
-    position: relative; width: 100%; aspect-ratio: 1;
-    box-sizing: border-box;
+    border: 2px solid #3a3a3a; background: #1e1e1e; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 2px; border-radius: 5px;
+    transition: border-color 0.15s; position: relative;
+    flex-shrink: 0; width: 100%; box-sizing: border-box;
   }
   .elem-slot:hover { border-color: #666; }
   .elem-slot.open { border-color: #00ff88; box-shadow: 0 0 8px #00ff8844; }
@@ -51,46 +50,42 @@
   .elem-slot.lmb.open { border-color: #00ff88; }
   .elem-slot.rmb { border-color: #ff4a4a; }
   .elem-slot.rmb.open { border-color: #00ff88; }
-  .elem-slot .slot-icon {
-    width: 60%; height: 60%; border-radius: 3px;
-  }
+  .elem-slot .slot-icon { border-radius: 3px; display: block; }
   .elem-slot .slot-name {
-    font-size: 8px; color: #aaa; text-transform: uppercase;
-    letter-spacing: 0.5px; text-align: center; line-height: 1;
-    width: 90%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    color: #aaa; text-transform: uppercase; letter-spacing: 0.5px;
+    text-align: center; line-height: 1; width: 92%; font-size: 8px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    flex-shrink: 0;
   }
   .slot-badge {
-    position: absolute; top: 3px; left: 4px;
-    font-size: 8px; font-weight: bold; letter-spacing: 0.5px;
+    position: absolute; top: 2px; left: 3px; font-size: 8px;
+    font-weight: bold; letter-spacing: 0.5px; flex-shrink: 0;
   }
   .lmb .slot-badge { color: #4a7aff; }
   .rmb .slot-badge { color: #ff4a4a; }
  
   /* SIDEBAR DIVIDER */
-  .sidebar-sep { width: 80%; height: 1px; background: #2a2a2a; margin: 2px 0; }
+  .sidebar-sep { width: 80%; height: 1px; background: #2a2a2a; flex-shrink: 0; }
  
-  /* TOOL BUTTONS IN SIDEBAR */
-  .side-tool-btn {
-    width: 100%; padding: 6px 2px; background: #1e1e1e;
-    border: 1px solid #333; color: #888; font-size: 10px;
+  /* TOOL / CTRL BUTTONS IN SIDEBAR */
+  .side-tool-btn, #sidebar .ctrl-btn {
+    width: 100%; background: #1e1e1e; border: 1px solid #333; color: #888;
     cursor: pointer; text-align: center; border-radius: 3px;
     font-family: 'Courier New', monospace; letter-spacing: 0.5px;
-    transition: all 0.1s; box-sizing: border-box;
+    transition: all 0.1s; box-sizing: border-box; flex-shrink: 0;
+    padding: 4px 2px; font-size: 10px;
   }
-  .side-tool-btn:hover { background: #252525; color: #bbb; }
+  .side-tool-btn:hover, #sidebar .ctrl-btn:hover { background: #252525; color: #bbb; }
   .side-tool-btn.active { background: #1a2e1a; border-color: #00aa55; color: #00ff88; }
-  /* ctrl-btns inside sidebar also go full width */
-  #sidebar .ctrl-btn {
-    width: 100%; font-size: 10px; padding: 5px 2px;
-    text-align: center; box-sizing: border-box;
-  }
+  #sidebar .ctrl-btn.active { background: #162816; border-color: #00aa55; color: #00ff88; }
  
-  /* CANVAS AREA */
+  /* CANVAS AREA — sits to the right of sidebar, canvas centered in remaining space */
   #canvas-wrap {
-    flex: 1; display: flex; align-items: center; justify-content: flex-start;
+    position: absolute; left: 90px; right: 0; top: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
     background: #000; overflow: hidden;
   }
-  canvas { display: block; cursor: crosshair; image-rendering: pixelated; flex-shrink: 0; }
+  canvas { display: block; cursor: crosshair; image-rendering: pixelated; }
  
   /* BOTTOM BAR */
   #bottombar {
@@ -215,14 +210,17 @@
  
       <div class="sidebar-sep"></div>
       <span class="sidebar-label">SIM</span>
-      <button class="ctrl-btn" id="btn-pause" style="width:56px;font-size:9px">PAUSE</button>
-      <button class="ctrl-btn" id="btn-clear" style="width:56px;font-size:9px">CLEAR</button>
-      <button class="ctrl-btn" id="btn-reset" style="width:56px;font-size:9px">RESET</button>
+      <button class="ctrl-btn" id="btn-pause">PAUSE</button>
+      <button class="ctrl-btn" id="btn-clear">CLEAR</button>
+      <button class="ctrl-btn" id="btn-reset">RESET</button>
     </div>
  
     <!-- CANVAS -->
     <div id="canvas-wrap">
-      <canvas id="c"></canvas>
+      <div style="position:relative;display:inline-block;">
+        <canvas id="c"></canvas>
+        <canvas id="overlay" style="position:absolute;top:0;left:0;pointer-events:none;image-rendering:pixelated;"></canvas>
+      </div>
     </div>
   </div>
  
@@ -1160,6 +1158,7 @@ function updateFan(x,y) {
 let vfxParticles = [];
  
 function spawnVFX(x,y,vx,vy,life,r,g,b,size=1.5) {
+  if(vfxParticles.length >= 300) return; // hard cap
   vfxParticles.push({x:x*CELL+CELL/2, y:y*CELL+CELL/2, vx, vy, life, maxLife:life, r,g,b,size});
 }
  
@@ -1288,54 +1287,48 @@ function explode(x, y, r, type='bomb') {
 function fireworksExplode(x, y) {
   set(x,y,EMPTY);
  
-  // Pick a random burst style
   const style = Math.floor(Math.random()*5);
   const burstColors = [
-    [[255,50,50],[255,180,0]],       // red+gold
-    [[50,150,255],[200,255,255]],    // blue+cyan
-    [[180,0,255],[255,100,255]],     // purple+pink
-    [[0,255,100],[255,255,0]],       // green+yellow
-    [[255,100,0],[255,255,200]],     // orange+white
+    [[255,50,50],[255,180,0]],
+    [[50,150,255],[200,255,255]],
+    [[180,0,255],[255,100,255]],
+    [[0,255,100],[255,255,0]],
+    [[255,100,0],[255,255,200]],
   ];
   const [colA, colB] = burstColors[style];
  
-  // Streaking trails — long fast particles
-  const arms = 6+Math.floor(Math.random()*10);
-  for (let arm=0;arm<arms;arm++) {
+  // 5-8 arms, 4-5 particles each = max ~40 particles total
+  const arms = 5 + Math.floor(Math.random()*4);
+  for (let arm=0; arm<arms; arm++) {
     const baseAngle = (arm/arms)*Math.PI*2 + Math.random()*0.3;
-    const armLen = 6+Math.floor(Math.random()*10);
+    const armLen = 4 + Math.floor(Math.random()*2);
     const col = Math.random()<0.5 ? colA : colB;
-    for (let s=0;s<armLen;s++) {
-      const spd = 0.8+s*0.25+Math.random()*0.4;
-      const jitter = (Math.random()-0.5)*0.25;
-      const life = 18+s*2+Math.floor(Math.random()*8);
-      spawnVFX(x,y,
+    for (let s=0; s<armLen; s++) {
+      const spd = 0.6 + s*0.3 + Math.random()*0.3;
+      const jitter = (Math.random()-0.5)*0.2;
+      spawnVFX(x, y,
         Math.cos(baseAngle+jitter)*spd,
         Math.sin(baseAngle+jitter)*spd,
-        life,
-        col[0]+Math.floor(Math.random()*30-15),
-        col[1]+Math.floor(Math.random()*30-15),
-        col[2]+Math.floor(Math.random()*30-15),
-        1.2+Math.random()*1.5);
+        14 + s*2,
+        col[0], col[1], col[2],
+        1.0 + Math.random()*1.0);
     }
   }
  
-  // Sparkling center burst
-  for(let i=0;i<40;i++) {
-    const a=Math.random()*Math.PI*2, spd=Math.random()*2;
-    spawnVFX(x,y, Math.cos(a)*spd, Math.sin(a)*spd-0.5,
-      15, 255,255,220, 2);
+  // Small center flash — just 10 particles
+  for(let i=0;i<10;i++) {
+    const a=Math.random()*Math.PI*2, spd=Math.random()*1.5;
+    spawnVFX(x,y, Math.cos(a)*spd, Math.sin(a)*spd-0.3,
+      10, 255,255,220, 1.5);
   }
  
-  // Leave some glowing debris in the grid too
-  const r=5+Math.floor(Math.random()*4);
-  for(let i=0;i<30;i++) {
-    const a=Math.random()*Math.PI*2, dist=Math.random()*r;
+  // A few grid sparks
+  for(let i=0;i<8;i++) {
+    const a=Math.random()*Math.PI*2, dist=Math.random()*4;
     const nx=Math.round(x+Math.cos(a)*dist);
     const ny=Math.round(y+Math.sin(a)*dist);
-    if(nx>=0&&nx<GRID_W&&ny>=0&&ny<GRID_H&&get(nx,ny)===EMPTY) {
-      set(nx,ny,SPARK,6+Math.floor(Math.random()*10));
-    }
+    if(nx>=0&&nx<GRID_W&&ny>=0&&ny<GRID_H&&get(nx,ny)===EMPTY)
+      set(nx,ny,SPARK,5+Math.floor(Math.random()*8));
   }
 }
  
@@ -1447,43 +1440,42 @@ function step() {
 // ========== RENDERING ==========
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const octx = overlay.getContext('2d');
 canvas.width = CANVAS_W;
 canvas.height = CANVAS_H;
+overlay.width = CANVAS_W;
+overlay.height = CANVAS_H;
  
 // Scale canvas to fit
 function resizeCanvas() {
-  const wrap = document.getElementById('canvas-wrap');
-  const sidebar = document.getElementById('sidebar');
-  // Temporarily collapse sidebar to measure total available width
-  sidebar.style.width = '0px';
-  const totalW = wrap.parentElement.clientWidth;
-  const totalH = wrap.clientHeight;
-  // Scale canvas to fit height, fixed width ratio
-  const scale = Math.min(totalW / CANVAS_W, totalH / CANVAS_H, 2);
-  const canvasDisplayW = Math.round(CANVAS_W * scale);
-  const canvasDisplayH = Math.round(CANVAS_H * scale);
-  canvas.style.width  = canvasDisplayW + 'px';
-  canvas.style.height = canvasDisplayH + 'px';
-  // Sidebar gets all leftover width
-  const sidebarW = Math.max(60, totalW - canvasDisplayW);
-  sidebar.style.width = sidebarW + 'px';
-  // Scale slot icons to ~65% of sidebar width
-  const iconSize = Math.max(28, Math.round(sidebarW * 0.60));
+  const main = document.getElementById('main');
+  const SIDEBAR_W = 90;
+  const availW = main.clientWidth - SIDEBAR_W;
+  const availH = main.clientHeight;
+ 
+  const scale = Math.min(availW / CANVAS_W, availH / CANVAS_H, 2);
+  const cw = Math.round(CANVAS_W * scale) + 'px';
+  const ch = Math.round(CANVAS_H * scale) + 'px';
+  canvas.style.width  = cw; canvas.style.height = ch;
+  overlay.style.width = cw; overlay.style.height = ch;
+ 
+  // Size sidebar content to fill height without scrolling
+  const fixedH = 12 + 4*12 + 2*5 + 13*4;
+  const remaining = availH - fixedH;
+  const slotH  = Math.max(28, Math.floor(remaining * 0.34));
+  const btnH   = Math.max(16, Math.floor((remaining - slotH * 2) / 6));
+  const iconSz = Math.max(14, Math.round(slotH * 0.40)); // smaller icons
+ 
+  document.querySelectorAll('.elem-slot').forEach(s => { s.style.height = slotH + 'px'; });
   document.querySelectorAll('.slot-icon').forEach(ic => {
-    ic.style.width  = iconSize + 'px';
-    ic.style.height = iconSize + 'px';
-    ic.width  = iconSize;
-    ic.height = iconSize;
+    ic.style.width = iconSz + 'px'; ic.style.height = iconSz + 'px';
+    ic.width = iconSz; ic.height = iconSz;
   });
-  // Scale font sizes proportionally
-  const fs = Math.max(9, Math.round(sidebarW * 0.115));
   document.querySelectorAll('.side-tool-btn, #sidebar .ctrl-btn').forEach(b => {
-    b.style.fontSize = fs + 'px';
+    b.style.height = btnH + 'px'; b.style.lineHeight = btnH + 'px';
   });
-  document.querySelectorAll('.elem-slot .slot-name').forEach(n => {
-    n.style.fontSize = Math.max(8, Math.round(sidebarW * 0.09)) + 'px';
-  });
-  // Refresh icons at new size
+ 
   if (typeof refreshSlotIcons === 'function') refreshSlotIcons();
 }
 window.addEventListener('resize', resizeCanvas);
@@ -1511,53 +1503,50 @@ function render() {
   }
   ctx.putImageData(imgData,0,0);
  
-  // --- Draw wind pressure lines ---
+  // --- Draw wind + VFX on overlay canvas (separate from putImageData canvas) ---
+  octx.clearRect(0,0,CANVAS_W,CANVAS_H);
+ 
+  // Wind pressure lines
   updateWindLines();
-  // Emit from cells with wind velocity — very sparse
   for(let y2=0;y2<GRID_H;y2+=4) for(let x2=0;x2<GRID_W;x2+=4) {
     const i2=idx(x2,y2);
     const wx=windX[i2], wy=windY[i2];
     const mag=Math.sqrt(wx*wx+wy*wy);
-    if(mag>1.2 && Math.random()<0.025) {
-      emitWindLine(x2,y2, wx, wy);
-    }
+    if(mag>1.2 && Math.random()<0.025) emitWindLine(x2,y2,wx,wy);
   }
   if(windLines.length>0) {
-    ctx.save();
+    octx.save(); octx.lineCap='round';
     for(const w of windLines) {
-      // fade in then out — peaks at midlife
-      const t = w.life/w.maxLife;
-      const fade = t < 0.3 ? t/0.3 : t > 0.7 ? (t-0.7)/0.3*(-1)+1 : 1;
-      const alpha = w.alpha * fade;
-      if(alpha < 0.01) continue;
-      // Draw as a short dash — just 4px long
-      const spd = Math.sqrt(w.vx*w.vx+w.vy*w.vy)+0.001;
-      const nx2 = w.vx/spd, ny2 = w.vy/spd;
-      const halfLen = 2.5;
-      ctx.strokeStyle=`rgba(160,210,255,${alpha.toFixed(3)})`;
-      ctx.lineWidth=0.9;
-      ctx.lineCap='round';
-      ctx.beginPath();
-      ctx.moveTo(w.x - nx2*halfLen, w.y - ny2*halfLen);
-      ctx.lineTo(w.x + nx2*halfLen, w.y + ny2*halfLen);
-      ctx.stroke();
+      const t=w.life/w.maxLife;
+      const fade=t<0.3?t/0.3:t>0.7?(1-(t-0.7)/0.3):1;
+      const alpha=w.alpha*fade;
+      if(alpha<0.01) continue;
+      const spd=Math.sqrt(w.vx*w.vx+w.vy*w.vy)+0.001;
+      const nx2=w.vx/spd, ny2=w.vy/spd;
+      const halfLen=2.5;
+      octx.strokeStyle=`rgba(160,210,255,${alpha.toFixed(3)})`;
+      octx.lineWidth=0.9;
+      octx.beginPath();
+      octx.moveTo(w.x-nx2*halfLen, w.y-ny2*halfLen);
+      octx.lineTo(w.x+nx2*halfLen, w.y+ny2*halfLen);
+      octx.stroke();
     }
-    ctx.restore();
+    octx.restore();
   }
  
-  // --- Draw VFX explosion particles ---
+  // VFX explosion particles
   updateVFX();
   if(vfxParticles.length>0) {
-    ctx.save();
+    octx.save();
     for(const p of vfxParticles) {
-      const alpha=Math.min(1, p.life/p.maxLife * 1.6);
+      const alpha=Math.min(1,p.life/p.maxLife*1.6);
       const size=p.size*(0.5+0.5*(p.life/p.maxLife));
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, size, 0, Math.PI*2);
-      ctx.fillStyle=`rgba(${p.r},${p.g},${p.b},${alpha.toFixed(2)})`;
-      ctx.fill();
+      octx.beginPath();
+      octx.arc(p.x,p.y,size,0,Math.PI*2);
+      octx.fillStyle=`rgba(${p.r},${p.g},${p.b},${alpha.toFixed(2)})`;
+      octx.fill();
     }
-    ctx.restore();
+    octx.restore();
   }
 }
  
