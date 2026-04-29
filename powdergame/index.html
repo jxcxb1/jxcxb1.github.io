@@ -1,0 +1,1915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POWDER GAME</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #111; color: #ccc; font-family: 'Courier New', monospace; user-select: none; overflow: hidden; }
+  #wrapper { display: flex; flex-direction: column; height: 100vh; }
+ 
+  /* TOP BAR */
+  #topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 3px 10px; background: #0d0d0d;
+    border-bottom: 1px solid #2a2a2a; font-size: 11px; flex-shrink: 0;
+  }
+  #topbar .title { color: #00ff88; font-weight: bold; letter-spacing: 3px; font-size: 12px; }
+  #fps-display { color: #0ff; }
+  #dotcount { color: #ffcc00; font-weight: bold; }
+ 
+  /* MAIN AREA */
+  #main { display: flex; flex: 1; overflow: hidden; }
+ 
+  /* LEFT SIDEBAR */
+  #sidebar {
+    width: 72px; background: #161616; border-right: 1px solid #2a2a2a;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 6px 4px; gap: 4px; flex-shrink: 0; z-index: 10;
+  }
+  .sidebar-label {
+    font-size: 8px; color: #555; text-transform: uppercase;
+    letter-spacing: 1px; margin-top: 2px;
+  }
+ 
+  /* ELEMENT SLOTS — the two clickable boxes on the sidebar */
+  .elem-slot {
+    width: 56px; height: 56px; border: 2px solid #3a3a3a;
+    background: #1e1e1e; cursor: pointer; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; border-radius: 4px; transition: border-color 0.15s;
+    position: relative;
+  }
+  .elem-slot:hover { border-color: #666; }
+  .elem-slot.open { border-color: #00ff88; box-shadow: 0 0 8px #00ff8844; }
+  .elem-slot.lmb { border-color: #4a7aff; }
+  .elem-slot.lmb.open { border-color: #00ff88; }
+  .elem-slot.rmb { border-color: #ff4a4a; }
+  .elem-slot.rmb.open { border-color: #00ff88; }
+  .elem-slot .slot-icon {
+    width: 30px; height: 30px; border-radius: 3px;
+  }
+  .elem-slot .slot-name {
+    font-size: 7px; color: #aaa; text-transform: uppercase;
+    letter-spacing: 0.5px; text-align: center; line-height: 1;
+    max-width: 52px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .slot-badge {
+    position: absolute; top: 2px; left: 3px;
+    font-size: 7px; font-weight: bold; letter-spacing: 0.5px;
+  }
+  .lmb .slot-badge { color: #4a7aff; }
+  .rmb .slot-badge { color: #ff4a4a; }
+ 
+  /* SIDEBAR DIVIDER */
+  .sidebar-sep { width: 48px; height: 1px; background: #2a2a2a; margin: 2px 0; }
+ 
+  /* TOOL BUTTONS IN SIDEBAR */
+  .side-tool-btn {
+    width: 56px; padding: 4px 2px; background: #1e1e1e;
+    border: 1px solid #333; color: #888; font-size: 8px;
+    cursor: pointer; text-align: center; border-radius: 3px;
+    font-family: 'Courier New', monospace; letter-spacing: 0.5px;
+    transition: all 0.1s;
+  }
+  .side-tool-btn:hover { background: #252525; color: #bbb; }
+  .side-tool-btn.active { background: #1a2e1a; border-color: #00aa55; color: #00ff88; }
+ 
+  /* CANVAS AREA */
+  #canvas-wrap {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #000; overflow: hidden;
+  }
+  canvas { display: block; cursor: crosshair; image-rendering: pixelated; }
+ 
+  /* BOTTOM BAR */
+  #bottombar {
+    width: 100%; background: #0d0d0d; border-top: 1px solid #2a2a2a;
+    padding: 4px 10px; display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap; flex-shrink: 0;
+  }
+  .ctrl-btn {
+    padding: 2px 8px; background: #1e1e1e; border: 1px solid #3a3a3a;
+    color: #888; font-size: 10px; cursor: pointer;
+    font-family: 'Courier New', monospace; border-radius: 2px;
+    transition: all 0.1s;
+  }
+  .ctrl-btn:hover { background: #282828; color: #bbb; }
+  .ctrl-btn.active { background: #162816; border-color: #00aa55; color: #00ff88; }
+  label { font-size: 10px; color: #666; }
+  input[type=range] { width: 60px; accent-color: #00ff88; }
+  select {
+    background: #1e1e1e; border: 1px solid #3a3a3a; color: #888;
+    font-size: 10px; padding: 1px 4px; font-family: 'Courier New', monospace;
+    border-radius: 2px;
+  }
+  .bsep { width: 1px; height: 16px; background: #2a2a2a; }
+ 
+  /* ====== ELEMENT PICKER — FULLSCREEN OVERLAY ====== */
+  #picker-overlay {
+    display: none; position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.82); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  #picker-overlay.visible { display: flex; }
+ 
+  #elem-picker {
+    background: #161616; border: 1px solid #333;
+    border-radius: 10px; padding: 18px 20px 20px;
+    box-shadow: 0 20px 60px #000c, 0 0 0 1px #00ff8833;
+    width: min(92vw, 700px); max-height: 88vh;
+    display: flex; flex-direction: column; gap: 12px;
+    overflow: hidden;
+  }
+  #picker-header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  #picker-title {
+    font-size: 13px; color: #00ff88; text-transform: uppercase;
+    letter-spacing: 3px; font-weight: bold;
+  }
+  #picker-close {
+    width: 32px; height: 32px; background: #2a2a2a; border: 1px solid #444;
+    color: #888; font-size: 18px; cursor: pointer; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; line-height: 1;
+  }
+  #picker-close:hover { background: #3a3a3a; color: #fff; }
+ 
+  #picker-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    gap: 8px; overflow-y: auto; padding-right: 4px;
+  }
+  #picker-grid::-webkit-scrollbar { width: 6px; }
+  #picker-grid::-webkit-scrollbar-track { background: #1a1a1a; }
+  #picker-grid::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+ 
+  .picker-item {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 6px; padding: 10px 6px 8px; border: 2px solid #2a2a2a;
+    background: #1e1e1e; cursor: pointer; border-radius: 6px;
+    transition: all 0.12s;
+  }
+  .picker-item:hover { background: #262626; border-color: #555; transform: scale(1.04); }
+  .picker-item:active { transform: scale(0.97); }
+  .picker-item.selected-lmb { border-color: #4a7aff; background: #181e32; box-shadow: 0 0 10px #4a7aff44; }
+  .picker-item.selected-rmb { border-color: #ff4a4a; background: #321818; box-shadow: 0 0 10px #ff4a4a44; }
+  .picker-icon { width: 52px; height: 52px; border-radius: 5px; image-rendering: pixelated; }
+  .picker-name {
+    font-size: 10px; color: #bbb; text-align: center;
+    text-transform: uppercase; letter-spacing: 1px;
+    font-family: 'Courier New', monospace; font-weight: bold;
+    line-height: 1.2;
+  }
+  .picker-item:hover .picker-name { color: #fff; }
+  .picker-item.selected-lmb .picker-name { color: #7aabff; }
+  .picker-item.selected-rmb .picker-name { color: #ff7a7a; }
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <span id="fps-display">60fps</span>
+    <span class="title">POWDER GAME</span>
+    <span id="dotcount">0dot</span>
+  </div>
+ 
+  <!-- MAIN -->
+  <div id="main">
+ 
+    <!-- LEFT SIDEBAR -->
+    <div id="sidebar">
+      <span class="sidebar-label">LMB</span>
+      <!-- Primary element slot (LMB) -->
+      <div class="elem-slot lmb" id="slot-lmb" title="Left mouse button element">
+        <span class="slot-badge">L</span>
+        <canvas class="slot-icon" id="icon-lmb" width="30" height="30"></canvas>
+        <span class="slot-name" id="name-lmb">POWDER</span>
+      </div>
+ 
+      <span class="sidebar-label">RMB/E</span>
+      <!-- Secondary element slot (RMB) -->
+      <div class="elem-slot rmb" id="slot-rmb" title="Right mouse button / E key element">
+        <span class="slot-badge">R</span>
+        <canvas class="slot-icon" id="icon-rmb" width="30" height="30"></canvas>
+        <span class="slot-name" id="name-rmb">WATER</span>
+      </div>
+ 
+      <div class="sidebar-sep"></div>
+      <span class="sidebar-label">TOOL</span>
+      <button class="side-tool-btn active" id="tool-draw">DRAW</button>
+      <button class="side-tool-btn" id="tool-erase">ERASE</button>
+      <button class="side-tool-btn" id="tool-wind">WIND</button>
+ 
+      <div class="sidebar-sep"></div>
+      <span class="sidebar-label">SIM</span>
+      <button class="ctrl-btn" id="btn-pause" style="width:56px;font-size:9px">PAUSE</button>
+      <button class="ctrl-btn" id="btn-clear" style="width:56px;font-size:9px">CLEAR</button>
+      <button class="ctrl-btn" id="btn-reset" style="width:56px;font-size:9px">RESET</button>
+    </div>
+ 
+    <!-- CANVAS -->
+    <div id="canvas-wrap">
+      <canvas id="c"></canvas>
+    </div>
+  </div>
+ 
+  <!-- BOTTOM BAR -->
+  <div id="bottombar">
+    <label>PEN:</label>
+    <input type="range" id="pen-size" min="1" max="20" value="3">
+    <span id="pen-label" style="font-size:10px;color:#666">3</span>
+    <div class="bsep"></div>
+    <label>SPEED:</label>
+    <select id="speed-sel">
+      <option value="1">x1 (slow)</option>
+      <option value="2">x2</option>
+      <option value="4">x4 (full)</option>
+    </select>
+    <div class="bsep"></div>
+    <label>SIDE:</label>
+    <button class="ctrl-btn" id="btn-loop">OFF</button>
+  </div>
+</div>
+ 
+<!-- ELEMENT PICKER — FULLSCREEN OVERLAY -->
+<div id="picker-overlay">
+  <div id="elem-picker">
+    <div id="picker-header">
+      <div id="picker-title">SELECT ELEMENT</div>
+      <button id="picker-close">✕</button>
+    </div>
+    <div id="picker-grid"></div>
+  </div>
+</div>
+ 
+<script>
+// ========== CONSTANTS ==========
+const CANVAS_W = 640, CANVAS_H = 480;
+const CELL = 2; // pixel size of each cell
+const GRID_W = CANVAS_W / CELL;
+const GRID_H = CANVAS_H / CELL;
+const MAX_DOTS = 40000;
+ 
+// ========== ELEMENT DEFINITIONS ==========
+// type: 0=empty, behaviors defined by update functions
+const EMPTY=0,WALL=1,POWDER=2,WATER=3,FIRE=4,SEED=5,WOOD=6,GUNPOWDER=7,
+  ICE=8,SNOW=9,OIL=10,STONE=11,MAGMA=12,VIRUS=13,NITRO=14,ANT=15,
+  TORCH=16,GAS=17,SOAPY=18,STEAM=19,THUNDER=20,METAL=21,BOMB=22,
+  LASER=23,ACID=24,VINE=25,SALT=26,SEAWATER=27,GLASS=28,BIRD=29,
+  MERCURY=30,SPARK=31,FUSE=32,CLOUD=33,PUMP=34,CLONE=35,FIREWORKS=36,
+  C4=37,FAN=38,SMOKE=39,ASH=40,SALT_WATER_MIX=41;
+ 
+// Element colors [r,g,b]
+const COLORS = {
+  [EMPTY]:[0,0,0],
+  [WALL]:[80,80,80],
+  [POWDER]:[210,190,140],
+  [WATER]:[30,80,200],
+  [FIRE]:[220,80,20],
+  [SEED]:[80,180,30],
+  [WOOD]:[140,90,40],
+  [GUNPOWDER]:[90,90,80],
+  [ICE]:[160,220,255],
+  [SNOW]:[220,230,255],
+  [OIL]:[150,110,40],
+  [STONE]:[120,110,100],
+  [MAGMA]:[255,60,0],
+  [VIRUS]:[200,0,200],
+  [NITRO]:[180,230,80],
+  [ANT]:[200,160,80],
+  [TORCH]:[200,100,0],
+  [GAS]:[160,200,160],
+  [SOAPY]:[200,230,255],
+  [STEAM]:[180,200,210],
+  [THUNDER]:[240,240,100],
+  [METAL]:[160,170,180],
+  [BOMB]:[60,60,60],
+  [LASER]:[255,0,80],
+  [ACID]:[100,230,60],
+  [VINE]:[50,150,30],
+  [SALT]:[240,240,220],
+  [SEAWATER]:[20,60,180],
+  [GLASS]:[180,220,240],
+  [BIRD]:[200,200,100],
+  [MERCURY]:[180,190,200],
+  [SPARK]:[255,220,80],
+  [FUSE]:[160,120,80],
+  [CLOUD]:[200,210,220],
+  [PUMP]:[80,100,120],
+  [CLONE]:[120,0,120],
+  [FIREWORKS]:[180,60,180],
+  [C4]:[50,50,80],
+  [FAN]:[100,160,180],
+  [SMOKE]:[80,80,80],
+  [ASH]:[100,100,90],
+  [SALT_WATER_MIX]:[50,80,160],
+};
+ 
+// Element names for UI
+const ELEM_NAMES = [
+  {id:POWDER,name:'POWDER',color:'#d2be8c'},
+  {id:WATER,name:'WATER',color:'#1e50c8'},
+  {id:FIRE,name:'FIRE',color:'#dc5014'},
+  {id:SEED,name:'SEED',color:'#50b41e'},
+  {id:WOOD,name:'WOOD',color:'#8c5a28'},
+  {id:GUNPOWDER,name:'G-POWDER',color:'#5a5a50'},
+  {id:FAN,name:'FAN',color:'#64a0b4'},
+  {id:ICE,name:'ICE',color:'#a0dcff'},
+  {id:SNOW,name:'SNOW',color:'#dce6ff'},
+  {id:CLONE,name:'CLONE',color:'#780078'},
+  {id:FIREWORKS,name:'F-WORKS',color:'#b43cb4'},
+  {id:OIL,name:'OIL',color:'#966e28'},
+  {id:C4,name:'C-4',color:'#323250'},
+  {id:STONE,name:'STONE',color:'#786e64'},
+  {id:MAGMA,name:'MAGMA',color:'#ff3c00'},
+  {id:VIRUS,name:'VIRUS',color:'#c800c8'},
+  {id:NITRO,name:'NITRO',color:'#b4e650'},
+  {id:ANT,name:'ANT',color:'#c8a050'},
+  {id:TORCH,name:'TORCH',color:'#c86400'},
+  {id:GAS,name:'GAS',color:'#a0c8a0'},
+  {id:SOAPY,name:'SOAPY',color:'#c8e6ff'},
+  {id:THUNDER,name:'THUNDER',color:'#f0f064'},
+  {id:METAL,name:'METAL',color:'#a0aab4'},
+  {id:BOMB,name:'BOMB',color:'#3c3c3c'},
+  {id:LASER,name:'LASER',color:'#ff0050'},
+  {id:ACID,name:'ACID',color:'#64e63c'},
+  {id:VINE,name:'VINE',color:'#32961e'},
+  {id:SALT,name:'SALT',color:'#f0f0dc'},
+  {id:SEAWATER,name:'SEAWATER',color:'#143cb4'},
+  {id:GLASS,name:'GLASS',color:'#b4dcf0'},
+  {id:BIRD,name:'BIRD',color:'#c8c864'},
+  {id:MERCURY,name:'MERCURY',color:'#b4bec8'},
+  {id:SPARK,name:'SPARK',color:'#ffdc50'},
+  {id:FUSE,name:'FUSE',color:'#a07850'},
+  {id:CLOUD,name:'CLOUD',color:'#c8d2dc'},
+  {id:PUMP,name:'PUMP',color:'#506478'},
+  {id:STEAM,name:'STEAM',color:'#b4c8d2'},
+  {id:WALL,name:'BLOCK',color:'#505050'},
+];
+ 
+// ========== GRID ==========
+let grid = new Uint8Array(GRID_W * GRID_H);
+let meta = new Uint8Array(GRID_W * GRID_H); // extra state (life, timer, dir)
+let windX = new Float32Array(GRID_W * GRID_H);
+let windY = new Float32Array(GRID_W * GRID_H);
+let updated = new Uint8Array(GRID_W * GRID_H);
+ 
+function idx(x, y) { return y * GRID_W + x; }
+function get(x, y) {
+  if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) return WALL;
+  return grid[idx(x,y)];
+}
+function set(x, y, t, m=0) {
+  if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) return;
+  grid[idx(x,y)] = t;
+  meta[idx(x,y)] = m;
+}
+function getMeta(x,y) {
+  if (x<0||x>=GRID_W||y<0||y>=GRID_H) return 0;
+  return meta[idx(x,y)];
+}
+ 
+// ========== PHYSICS HELPERS ==========
+function isSolid(t) {
+  return t===WALL||t===WOOD||t===STONE||t===METAL||t===GLASS||t===PUMP||t===FUSE||t===VINE||t===ICE||t===CLONE||t===C4||t===BOMB||t===SEED;
+}
+function isLiquid(t) {
+  return t===WATER||t===OIL||t===MAGMA||t===MERCURY||t===ACID||t===SEAWATER||t===SOAPY||t===NITRO;
+}
+function isGas(t) {
+  return t===FIRE||t===GAS||t===STEAM||t===SMOKE||t===LASER||t===THUNDER||t===SPARK;
+}
+function isPowder(t) {
+  return t===POWDER||t===GUNPOWDER||t===SALT||t===ASH||t===SNOW||t===FIREWORKS||t===ANT||t===BIRD;
+}
+function isFlammable(t) {
+  return t===POWDER||t===WOOD||t===OIL||t===GAS||t===GUNPOWDER||t===VINE||t===NITRO||t===FUSE||t===SEED||t===C4||t===FIREWORKS||t===BIRD;
+}
+function isConductive(t) {
+  return t===METAL||t===MERCURY||t===GLASS;
+}
+function canSwap(a, b) {
+  // lighter things float over heavier
+  if (b === EMPTY) return true;
+  if (isPowder(a) && isLiquid(b)) return true;
+  if (isGas(a) && (isLiquid(b)||isPowder(b)||b===EMPTY)) return false; // gas rises
+  return false;
+}
+ 
+let dotCount = 0;
+function countDots() {
+  let c = 0;
+  for (let i = 0; i < GRID_W*GRID_H; i++) if (grid[i] !== EMPTY) c++;
+  return c;
+}
+ 
+// ========== MOVEMENT ==========
+function tryMove(x, y, nx, ny) {
+  if (nx<0||nx>=GRID_W||ny<0||ny>=GRID_H) return false;
+  const ni = idx(nx,ny);
+  const ci = idx(x,y);
+  if (grid[ni] === EMPTY) {
+    grid[ni] = grid[ci]; meta[ni] = meta[ci];
+    grid[ci] = EMPTY; meta[ci] = 0;
+    updated[ni] = 1;
+    return true;
+  }
+  return false;
+}
+function swap(x, y, nx, ny) {
+  const ci = idx(x,y), ni = idx(nx,ny);
+  let t=grid[ci]; grid[ci]=grid[ni]; grid[ni]=t;
+  t=meta[ci]; meta[ci]=meta[ni]; meta[ni]=t;
+  updated[ni]=1;
+}
+ 
+// ========== UPDATE FUNCTIONS ==========
+function updatePowder(x, y) {
+  // falls down, piles up
+  if (tryMove(x,y,x,y+1)) return;
+  const d = Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y+1)) return;
+  if (tryMove(x,y,x-d,y+1)) return;
+  // wind effect
+  const wi = idx(x,y);
+  if (Math.abs(windX[wi]) > 0.3) {
+    const dx = windX[wi]>0?1:-1;
+    tryMove(x,y,x+dx,y);
+  }
+}
+ 
+function updateWater(x, y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d = Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y)) return;
+  if (tryMove(x,y,x-d,y)) return;
+}
+ 
+function updateLiquidGeneric(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d = Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y)) return;
+  if (tryMove(x,y,x-d,y)) return;
+}
+ 
+function updateFire(x, y) {
+  const i = idx(x,y);
+  // fire has a lifetime
+  if (meta[i] === 0) meta[i] = 20 + Math.floor(Math.random()*30);
+  meta[i]--;
+  if (meta[i] <= 0) {
+    grid[i] = SMOKE; meta[i] = 15+Math.floor(Math.random()*20);
+    return;
+  }
+  // spread upward
+  if (!tryMove(x,y,x,y-1)) {
+    if (Math.random()<0.3) tryMove(x,y,x+(Math.random()<0.5?-1:1),y-1);
+  }
+  // ignite neighbors
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt = get(x+dx,y+dy);
+    if (isFlammable(nt) && Math.random()<0.15) {
+      if (nt===GAS) { explodeGas(x+dx,y+dy); return; }
+      if (nt===NITRO) { explode(x+dx,y+dy,8); return; }
+      if (nt===C4) { explode(x+dx,y+dy,12); return; }
+      if (nt===GUNPOWDER) { explode(x+dx,y+dy,6); return; }
+      if (nt===FIREWORKS) { fireworksExplode(x+dx,y+dy); return; }
+      set(x+dx,y+dy,FIRE, 20+Math.floor(Math.random()*30));
+    }
+    if (nt===WATER||nt===SEAWATER) { // extinguish
+      if (Math.random()<0.3) { set(x,y,STEAM,30); return; }
+    }
+  }
+}
+ 
+function updateSmoke(x,y) {
+  const i = idx(x,y);
+  if (meta[i]>0) meta[i]--;
+  if (meta[i]<=0) { grid[i]=EMPTY; return; }
+  if (!tryMove(x,y,x,y-1)) {
+    tryMove(x,y,x+(Math.random()<0.5?-1:1),y-1);
+  }
+}
+ 
+function updateSteam(x,y) {
+  const i = idx(x,y);
+  if (meta[i]>0) meta[i]--;
+  if (meta[i]<=0) {
+    // condense back to water sometimes
+    if (Math.random()<0.3) { grid[i]=WATER; meta[i]=0; }
+    else grid[i]=EMPTY;
+    return;
+  }
+  if (!tryMove(x,y,x,y-1)) {
+    const d=Math.random()<0.5?-1:1;
+    if (!tryMove(x,y,x+d,y)) tryMove(x,y,x-d,y);
+  }
+}
+ 
+function updateGas(x,y) {
+  // floats up and drifts - does NOT disappear on its own
+  if (!tryMove(x,y,x,y-1)) {
+    const d=Math.random()<0.5?-1:1;
+    tryMove(x,y,x+d,y+(Math.random()<0.3?0:-1));
+  }
+  // react with fire/spark/laser = explosion
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (get(x+dx,y+dy)===FIRE||get(x+dx,y+dy)===SPARK||get(x+dx,y+dy)===LASER) {
+      explodeGas(x,y); return;
+    }
+  }
+}
+ 
+function updateSeed(x,y) {
+  // falls like powder
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y+1)) return;
+  // try to grow wood from powder neighbors
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===POWDER||nt===EMPTY)&&Math.random()<0.02) {
+      set(x,y,WOOD);
+      if (nt===POWDER) set(x+dx,y+dy,WOOD);
+      return;
+    }
+    if (nt===WATER&&Math.random()<0.01) {
+      set(x,y,WOOD); return;
+    }
+  }
+}
+ 
+function updateWood(x,y) {
+  // static - reacts with fire, acid
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===FIRE||nt===MAGMA||nt===LASER||nt===TORCH)&&Math.random()<0.05) {
+      set(x,y,FIRE,20); return;
+    }
+    if (nt===ACID&&Math.random()<0.1) { set(x,y,EMPTY); return; }
+    if (nt===SEED&&Math.random()<0.005) {
+      // seed grows more wood near water
+      const hasWater = get(x-1,y)===WATER||get(x+1,y)===WATER||get(x,y-1)===WATER;
+      if (hasWater) set(x+dx,y+dy,WOOD);
+    }
+  }
+}
+ 
+function updateVine(x,y) {
+  const i = idx(x,y);
+  // meta tracks a growth "charge" - only vines recently placed or near growth fronts spread
+  // Grow downward like hanging tendrils (primary direction)
+  if (get(x,y+1)===EMPTY && Math.random()<0.008) {
+    set(x,y+1,VINE);
+  }
+  // Occasionally branch sideways — short spurts, not continuous spreading
+  if (Math.random()<0.003) {
+    const d = Math.random()<0.5?-1:1;
+    if (get(x+d,y)===EMPTY) {
+      set(x+d,y,VINE);
+      // Branch also tries to go diag-down for organic look
+      if (get(x+d,y+1)===EMPTY && Math.random()<0.4) set(x+d,y+1,VINE);
+    }
+  }
+  // Very rarely grow upward (like climbing)
+  if (get(x,y-1)===EMPTY && Math.random()<0.001) {
+    set(x,y-1,VINE);
+  }
+  // Burns fast from fire/magma/laser/torch
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===FIRE||nt===MAGMA||nt===LASER||nt===TORCH)&&Math.random()<0.2) {
+      set(x,y,FIRE,15); return;
+    }
+    if (nt===ACID&&Math.random()<0.05) { set(x,y,EMPTY); return; }
+    // seawater still kills vine (salt), but plain water does NOT
+    if (nt===SEAWATER&&Math.random()<0.08) { set(x,y,POWDER); return; }
+  }
+}
+ 
+function updateIce(x,y) {
+  // melts near fire/magma/torch/laser
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===FIRE||nt===MAGMA||nt===TORCH||nt===LASER||nt===SPARK)&&Math.random()<0.05) {
+      set(x,y,WATER); return;
+    }
+  }
+  // freezes water neighbors
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    if (get(x+dx,y+dy)===WATER&&Math.random()<0.03) {
+      set(x+dx,y+dy,ICE);
+    }
+  }
+}
+ 
+function updateSnow(x,y) {
+  // falls gently
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (Math.random()<0.3&&tryMove(x,y,x+d,y+1)) return;
+  // melts near fire
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===FIRE||nt===MAGMA||nt===TORCH)&&Math.random()<0.05) {
+      set(x,y,WATER); return;
+    }
+  }
+  // freezes water
+  if (get(x,y+1)===WATER&&Math.random()<0.05) set(x,y+1,ICE);
+}
+ 
+function updateOil(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y)) return;
+  if (tryMove(x,y,x-d,y)) return;
+  // ignites from fire
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===FIRE||nt===MAGMA||nt===LASER||nt===TORCH||nt===SPARK)&&Math.random()<0.1) {
+      set(x,y,FIRE,40); return;
+    }
+    if (nt===ACID&&Math.random()<0.05) { set(x,y,EMPTY); return; }
+  }
+}
+ 
+function updateGunpowder(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y+1)) return;
+  // explodes from fire
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===FIRE||nt===MAGMA||nt===LASER||nt===SPARK||nt===TORCH)&&Math.random()<0.3) {
+      explodeGunpowder(x,y); return;
+    }
+  }
+}
+ 
+function updateStone(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y+1)) return;
+  // becomes magma near fire
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    if (get(x+dx,y+dy)===MAGMA&&Math.random()<0.01) { set(x,y,MAGMA); return; }
+    if (get(x+dx,y+dy)===ACID&&Math.random()<0.05) { set(x,y,EMPTY); return; }
+  }
+}
+ 
+function updateMagma(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y)) return;
+  if (tryMove(x,y,x-d,y)) return;
+  // ignites nearby
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if (isFlammable(nt)&&Math.random()<0.1) { set(x+dx,y+dy,FIRE,20); return; }
+    if (nt===WATER&&Math.random()<0.05) { set(x,y,STONE); set(x+dx,y+dy,STEAM,30); return; }
+    if (nt===ICE&&Math.random()<0.1) { set(x+dx,y+dy,WATER); }
+    if (nt===ACID&&Math.random()<0.05) { set(x,y,STONE); return; }
+  }
+}
+ 
+function updateMetal(x,y) {
+  // static - conducts thunder/spark
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===THUNDER||nt===SPARK)&&Math.random()<0.5) {
+      set(x,y,SPARK,5); return; // metal becomes spark briefly
+    }
+    if (nt===ACID&&Math.random()<0.03) { set(x,y,POWDER); return; }
+    if (nt===MAGMA&&Math.random()<0.005) { set(x,y,MAGMA); return; }
+    // water rusts metal slowly
+    if ((nt===WATER||nt===SEAWATER)&&Math.random()<0.001) { set(x,y,POWDER); return; }
+  }
+}
+ 
+function updateGlass(x,y) {
+  // static - reflects laser, conducts thunder
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if (nt===ACID&&Math.random()<0.05) { set(x,y,EMPTY); return; }
+    if (nt===BOMB&&Math.random()<0.5) { set(x,y,EMPTY); return; }
+    if ((nt===THUNDER||nt===SPARK)&&Math.random()<0.3) { set(x,y,SPARK,5); return; }
+  }
+}
+ 
+function updateBomb(x,y) {
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if (nt!==EMPTY&&nt!==WALL&&nt!==BOMB&&Math.random()<0.1) {
+      explodeBomb(x,y); return;
+    }
+  }
+}
+ 
+function updateC4(x,y) {
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===FIRE||nt===SPARK||nt===THUNDER||nt===LASER||nt===BOMB)&&Math.random()<0.5) {
+      explodeC4(x,y); return;
+    }
+  }
+}
+ 
+function updateFireworks(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y+1)) return;
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===FIRE||nt===SPARK||nt===LASER||nt===TORCH||nt===MAGMA)&&Math.random()<0.3) {
+      fireworksExplode(x,y); return;
+    }
+  }
+}
+ 
+function updateAcid(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y)) return;
+  if (tryMove(x,y,x-d,y)) return;
+  // dissolves neighbors
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if (nt!==EMPTY&&nt!==WALL&&nt!==ACID&&nt!==GLASS&&nt!==PUMP&&Math.random()<0.05) {
+      if (nt===METAL) { set(x+dx,y+dy,SMOKE); } 
+      else { set(x+dx,y+dy,EMPTY); }
+      if (Math.random()<0.3) set(x,y,EMPTY); // acid consumed
+      return;
+    }
+  }
+}
+ 
+function updateSalt(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y+1)) return;
+  // dissolves in water
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    if ((get(x+dx,y+dy)===WATER||get(x+dx,y+dy)===SEAWATER)&&Math.random()<0.1) {
+      set(x,y,EMPTY); set(x+dx,y+dy,SEAWATER); return;
+    }
+  }
+}
+ 
+function updateSeawater(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y)) return;
+  if (tryMove(x,y,x-d,y)) return;
+  // corrodes metal
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    if (get(x+dx,y+dy)===METAL&&Math.random()<0.002) { set(x+dx,y+dy,POWDER); }
+    if ((get(x+dx,y+dy)===FIRE||get(x+dx,y+dy)===MAGMA)&&Math.random()<0.3) {
+      set(x+dx,y+dy,STEAM,30);
+    }
+  }
+}
+ 
+function updateSoapy(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y)) return;
+  if (tryMove(x,y,x-d,y)) return;
+}
+ 
+function updateMercury(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y)) return;
+  if (tryMove(x,y,x-d,y)) return;
+  // reflects/conducts laser/thunder
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if (nt===THUNDER&&Math.random()<0.5) { set(x,y,SPARK,5); }
+    if (nt===ACID&&Math.random()<0.1) { set(x,y,EMPTY); return; }
+    if (nt===MAGMA&&Math.random()<0.05) { set(x,y,MAGMA); return; }
+  }
+}
+ 
+function updateThunder(x,y) {
+  const i=idx(x,y);
+  if (meta[i]===0) meta[i]=3+Math.floor(Math.random()*5);
+  meta[i]--;
+  if (meta[i]<=0) { grid[i]=EMPTY; return; }
+  // travels - tries to go to conductive neighbors or random
+  const dirs=[[0,1],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
+  const d=dirs[Math.floor(Math.random()*dirs.length)];
+  const nx=x+d[0],ny=y+d[1];
+  if (nx>=0&&nx<GRID_W&&ny>=0&&ny<GRID_H) {
+    const nt=get(nx,ny);
+    if (isConductive(nt)) { set(nx,ny,SPARK,10); }
+    else if (nt===EMPTY||nt===GAS) { 
+      tryMove(x,y,nx,ny);
+    } else if (nt===WATER||nt===SEAWATER) {
+      // spreads through water
+      for (let i2=-2;i2<=2;i2++) for(let j=-2;j<=2;j++) {
+        if(get(nx+i2,ny+j)===WATER||get(nx+i2,ny+j)===SEAWATER) {
+          if(Math.random()<0.3) set(nx+i2,ny+j,SPARK,8);
+        }
+      }
+      grid[idx(x,y)]=EMPTY;
+    } else if (isFlammable(nt)) {
+      set(nx,ny,FIRE,20);
+      grid[idx(x,y)]=EMPTY;
+    }
+  }
+}
+ 
+function updateLaser(x,y) {
+  const i=idx(x,y);
+  if (meta[i]===0) meta[i]=8+Math.floor(Math.random()*8);
+  meta[i]--;
+  if (meta[i]<=0) { grid[i]=EMPTY; return; }
+  // travels in a direction - try to continue straight
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  let moved=false;
+  for (const d of dirs) {
+    const nx=x+d[0],ny=y+d[1];
+    if (nx>=0&&nx<GRID_W&&ny>=0&&ny<GRID_H) {
+      const nt=get(nx,ny);
+      if (nt===EMPTY) { tryMove(x,y,nx,ny); moved=true; break; }
+      if (isConductive(nt)||nt===METAL) {
+        set(x,y,EMPTY); // reflect
+        break;
+      }
+      if (isFlammable(nt)) { set(nx,ny,FIRE,20); set(x,y,EMPTY); moved=true; break; }
+      if (nt===WATER||nt===ICE) { set(x,y,EMPTY); moved=true; break; }
+    }
+  }
+  if (!moved && Math.random()<0.5) grid[idx(x,y)]=EMPTY;
+}
+ 
+function updateSpark(x,y) {
+  const i=idx(x,y);
+  if (meta[i]===0) meta[i]=5+Math.floor(Math.random()*10);
+  meta[i]--;
+  if (meta[i]<=0) { grid[i]=EMPTY; return; }
+  // spreads along conductors
+  for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
+    if(dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if (isConductive(nt)&&Math.random()<0.4) {
+      set(x+dx,y+dy,SPARK,meta[i]-1);
+    }
+    if (isFlammable(nt)&&Math.random()<0.1) set(x+dx,y+dy,FIRE,20);
+    if (nt===GAS||nt===NITRO) { explodeGas(x+dx,y+dy); return; }
+  }
+}
+ 
+function updateFuse(x,y) {
+  // static until ignited - meta>0 means burning
+  const i=idx(x,y);
+  if (meta[i]>0) {
+    meta[i]--;
+    if (meta[i]<=0) { grid[i]=FIRE; meta[i]=20; return; }
+    // spread burn along fuse
+    for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
+      if(dx===0&&dy===0) continue;
+      if(get(x+dx,y+dy)===FUSE&&getMeta(x+dx,y+dy)===0&&Math.random()<0.3) {
+        meta[idx(x+dx,y+dy)]=30+Math.floor(Math.random()*20);
+      }
+    }
+    return;
+  }
+  // check for ignition
+  for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
+    if(dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if((nt===FIRE||nt===SPARK||nt===LASER||nt===TORCH||nt===MAGMA)&&Math.random()<0.3) {
+      meta[i]=40+Math.floor(Math.random()*30);
+    }
+  }
+}
+ 
+function updateTorch(x,y) {
+  // emits fire/light upward
+  if (Math.random()<0.3) {
+    if (get(x,y-1)===EMPTY||get(x,y-1)===GAS) {
+      set(x,y-1,FIRE,15);
+    }
+  }
+  // extinguished by water
+  for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
+    if((get(x+dx,y+dy)===WATER||get(x+dx,y+dy)===SEAWATER)&&Math.random()<0.1) {
+      set(x,y,SMOKE,20); return;
+    }
+  }
+}
+ 
+function updateCloud(x,y) {
+  // floats, rains water
+  const i=idx(x,y);
+  if (!tryMove(x,y,x,y-1)) {
+    tryMove(x,y,x+(Math.random()<0.5?-1:1),y);
+  }
+  if (Math.random()<0.01 && get(x,y+1)===EMPTY) {
+    set(x,y+1,WATER);
+  }
+}
+ 
+function updatePump(x,y) {
+  // absorbs liquids - static
+  for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
+    if(dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if(isLiquid(nt)&&Math.random()<0.1) {
+      set(x+dx,y+dy,EMPTY); // absorbs
+    }
+  }
+}
+ 
+function updateClone(x,y) {
+  // clones whatever touches it
+  for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
+    if(dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if(nt!==EMPTY&&nt!==WALL&&nt!==CLONE&&Math.random()<0.1) {
+      // emit that element in an empty adjacent spot
+      const ex=x+(-dx),ey=y+(-dy);
+      if(ex>=0&&ex<GRID_W&&ey>=0&&ey<GRID_H&&get(ex,ey)===EMPTY&&dotCount<MAX_DOTS) {
+        set(ex,ey,nt);
+      }
+    }
+  }
+}
+ 
+function updateVirus(x,y) {
+  // infects neighbors, turning them into virus
+  for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
+    if(dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if(nt!==EMPTY&&nt!==WALL&&nt!==VIRUS&&Math.random()<0.05) {
+      set(x+dx,y+dy,VIRUS);
+    }
+  }
+}
+ 
+function updateNitro(x,y) {
+  if (tryMove(x,y,x,y+1)) return;
+  const d=Math.random()<0.5?-1:1;
+  if (tryMove(x,y,x+d,y)) return;
+  if (tryMove(x,y,x-d,y)) return;
+  for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
+    if(dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if((nt===FIRE||nt===SPARK||nt===LASER||nt===TORCH||nt===MAGMA||nt===BOMB)&&Math.random()<0.5) {
+      explodeNitro(x,y); return;
+    }
+  }
+}
+ 
+function updateAnt(x,y) {
+  const i = idx(x,y);
+ 
+  // --- GRAVITY: fall down if nothing below ---
+  if (get(x,y+1)===EMPTY) {
+    tryMove(x,y,x,y+1);
+    return;
+  }
+  // Slide down diagonals if blocked below
+  if (get(x,y+1)!==EMPTY && get(x,y+1)!==ANT) {
+    const d = Math.random()<0.5?-1:1;
+    if (get(x+d,y+1)===EMPTY) { tryMove(x,y,x+d,y+1); return; }
+    if (get(x-d,y+1)===EMPTY) { tryMove(x,y,x-d,y+1); return; }
+  }
+ 
+  // --- PUMP COLONY: ants carve tunnels through pump, growing the colony ---
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nx=x+dx, ny=y+dy;
+    if (get(nx,ny)===PUMP && Math.random()<0.012) {
+      // Ant moves into the pump cell
+      set(nx,ny,ANT);
+      set(x,y,EMPTY);
+      // Grow 1-3 new pump branches outward from the carved cell
+      const tunnelDirs = [[1,0],[-1,0],[0,1],[1,1],[-1,1],[0,-1],[1,-1],[-1,-1]];
+      const numBranches = 1 + (Math.random()<0.4?1:0) + (Math.random()<0.2?1:0);
+      // Shuffle dirs
+      for (let s=tunnelDirs.length-1;s>0;s--) {
+        const r=Math.floor(Math.random()*(s+1));
+        [tunnelDirs[s],tunnelDirs[r]]=[tunnelDirs[r],tunnelDirs[s]];
+      }
+      let grown=0;
+      for (const td of tunnelDirs) {
+        if (grown>=numBranches) break;
+        const ex=nx+td[0], ey=ny+td[1];
+        if (ex>0&&ex<GRID_W-1&&ey>0&&ey<GRID_H-1&&get(ex,ey)===EMPTY) {
+          set(ex,ey,PUMP);
+          grown++;
+          // Occasionally extend a second cell in same direction for longer tunnels
+          if (Math.random()<0.35) {
+            const ex2=ex+td[0], ey2=ey+td[1];
+            if (ex2>0&&ex2<GRID_W-1&&ey2>0&&ey2<GRID_H-1&&get(ex2,ey2)===EMPTY) {
+              set(ex2,ey2,PUMP);
+            }
+          }
+        }
+      }
+      return;
+    }
+  }
+ 
+  // --- CLUMPING: prefer moving toward other ants ---
+  let antNeighbors = 0;
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    if (get(x+dx,y+dy)===ANT) antNeighbors++;
+  }
+  // If already well-clumped (3+ neighbors), mostly stay put
+  if (antNeighbors>=3 && Math.random()<0.7) return;
+ 
+  // --- MOVEMENT: walk on surfaces, prefer staying grounded ---
+  // Only move occasionally for performance and realistic crawling
+  if (Math.random()<0.4) {
+    // Try to walk sideways along the ground
+    const d = Math.random()<0.5?-1:1;
+    const below = get(x+d,y+1);
+    const side  = get(x+d,y);
+    // Walk sideways if there's ground beneath the target
+    if (side===EMPTY && (below!==EMPTY||get(x+d,y-1)===ANT)) {
+      tryMove(x,y,x+d,y); return;
+    }
+    // Climb up 1 cell to get over obstacles
+    if (side!==EMPTY&&side!==WALL&&get(x+d,y-1)===EMPTY) {
+      tryMove(x,y,x+d,y-1); return;
+    }
+    // Fall off ledges to find ground
+    if (side===EMPTY&&below===EMPTY) {
+      tryMove(x,y,x+d,y); return;
+    }
+  }
+ 
+  // --- EAT: convert wood/seed neighbors ---
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===WOOD||nt===SEED||nt===VINE)&&Math.random()<0.03) {
+      set(x+dx,y+dy,ANT); return;
+    }
+  }
+ 
+  // --- DEATH conditions ---
+  for (let dx=-1;dx<=1;dx++) for (let dy=-1;dy<=1;dy++) {
+    if (dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if ((nt===FIRE||nt===MAGMA||nt===ACID||nt===LASER)&&Math.random()<0.3) {
+      set(x,y,EMPTY); return;
+    }
+  }
+}
+ 
+function updateBird(x,y) {
+  // falls slowly, eats seed/ant
+  const i=idx(x,y);
+  if (meta[i]===0) meta[i]=3;
+  meta[i]--;
+  if (meta[i]>0) return;
+  meta[i]=3+Math.floor(Math.random()*5);
+  const d=Math.random()<0.5?-1:1;
+  tryMove(x,y,x+d,y+(Math.random()<0.3?1:-1));
+  for (let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) {
+    if(dx===0&&dy===0) continue;
+    const nt=get(x+dx,y+dy);
+    if((nt===SEED||nt===ANT)&&Math.random()<0.2) set(x+dx,y+dy,EMPTY);
+    if((nt===FIRE||nt===LASER||nt===ACID)&&Math.random()<0.3) { set(x,y,EMPTY); return; }
+  }
+}
+ 
+function updateFan(x,y) {
+  // Emit wind lines (visual) — gentle, sparse
+  if(Math.random()<0.15) {
+    const a = Math.random()*Math.PI*2;
+    emitWindLine(x, y, Math.cos(a), Math.sin(a));
+  }
+ 
+  // Actually push movable particles in a radius
+  const fanR = 5;
+  for(let dx=-fanR;dx<=fanR;dx++) for(let dy=-fanR;dy<=fanR;dy++) {
+    if(dx===0&&dy===0) continue;
+    const dist2=dx*dx+dy*dy;
+    if(dist2>fanR*fanR) continue;
+    const nx=x+dx, ny=y+dy;
+    if(nx<=0||nx>=GRID_W-1||ny<=0||ny>=GRID_H-1) continue;
+    const nt=get(nx,ny);
+    // Only push free-moving elements
+    if(nt===EMPTY||nt===WALL||nt===WOOD||nt===STONE||nt===METAL||nt===GLASS||nt===FUSE||nt===PUMP||nt===CLONE||nt===FAN) continue;
+    const strength = (1-Math.sqrt(dist2)/(fanR+1));
+    if(Math.random() < strength * 0.4) {
+      // try to push in direction away from fan
+      const pdx = dx>0?1:dx<0?-1:0;
+      const pdy = dy>0?1:dy<0?-1:0;
+      // try primary direction, then diagonals
+      if(!tryMove(nx,ny,nx+pdx,ny+pdy)) {
+        if(pdx!==0) tryMove(nx,ny,nx+pdx,ny);
+        else if(pdy!==0) tryMove(nx,ny,nx,ny+pdy);
+      }
+    }
+  }
+ 
+  // Also write wind vectors for powder wind effect
+  for(let dx=-3;dx<=3;dx++) for(let dy=-3;dy<=3;dy++) {
+    if(dx===0&&dy===0) continue;
+    const ni=idx(x+dx,y+dy);
+    if(x+dx>=0&&x+dx<GRID_W&&y+dy>=0&&y+dy<GRID_H) {
+      windX[ni]+=dx*0.3;
+      windY[ni]+=dy*0.2;
+    }
+  }
+}
+ 
+// ========== VISUAL PARTICLE SYSTEM (render-only, no sim effect) ==========
+// Particles: {x,y,vx,vy,life,maxLife,r,g,b,size,type}
+let vfxParticles = [];
+ 
+function spawnVFX(x,y,vx,vy,life,r,g,b,size=1.5) {
+  vfxParticles.push({x:x*CELL+CELL/2, y:y*CELL+CELL/2, vx, vy, life, maxLife:life, r,g,b,size});
+}
+ 
+function updateVFX() {
+  for (let i=vfxParticles.length-1;i>=0;i--) {
+    const p=vfxParticles[i];
+    p.x+=p.vx; p.y+=p.vy;
+    p.vy+=0.04; // gravity
+    p.life--;
+    if(p.life<=0) vfxParticles.splice(i,1);
+  }
+}
+ 
+// ========== EXPLOSION ==========
+// type: 'bomb'|'gunpowder'|'gas'|'nitro'|'c4'|'oil'
+function explode(x, y, r, type='bomb') {
+  const i=idx(x,y);
+  grid[i]=EMPTY;
+ 
+  // Sim grid destruction
+  for (let dx=-r;dx<=r;dx++) for(let dy=-r;dy<=r;dy++) {
+    if (dx*dx+dy*dy>r*r) continue;
+    const nx=x+dx,ny=y+dy;
+    if (nx<0||nx>=GRID_W||ny<0||ny>=GRID_H) continue;
+    const nt=get(nx,ny);
+    if (nt===WALL) continue;
+    const dist=Math.sqrt(dx*dx+dy*dy);
+    if (dist<r*0.5) { set(nx,ny,EMPTY); }
+    else if (dist<r*0.8 && isFlammable(nt)) { set(nx,ny,FIRE,30); }
+    else if (dist<r && nt===EMPTY && Math.random()<0.3) { set(nx,ny,FIRE,15); }
+    const ni=idx(nx,ny);
+    windX[ni]+=dx/(dist+0.1)*3;
+    windY[ni]+=dy/(dist+0.1)*3;
+  }
+ 
+  // ---- VFX particles per explosion type ----
+  const cx=x, cy=y;
+  const count = r*8;
+ 
+  if (type==='bomb') {
+    // Classic orange-grey shockwave: fiery core + grey debris
+    for(let i=0;i<count;i++) {
+      const a=Math.random()*Math.PI*2, spd=(0.5+Math.random()*3)*(r/8);
+      const hot=Math.random()<0.6;
+      spawnVFX(cx,cy, Math.cos(a)*spd, Math.sin(a)*spd-1,
+        12+Math.floor(Math.random()*18),
+        hot?220+Math.floor(Math.random()*35):100+Math.floor(Math.random()*60),
+        hot?80+Math.floor(Math.random()*80):80+Math.floor(Math.random()*40),
+        hot?10:60+Math.floor(Math.random()*60),
+        1.5+Math.random()*2);
+    }
+    // Shockwave ring
+    for(let i=0;i<24;i++) {
+      const a=(i/24)*Math.PI*2, spd=r*0.4+Math.random()*0.5;
+      spawnVFX(cx,cy, Math.cos(a)*spd, Math.sin(a)*spd,
+        6, 200,160,80, 2);
+    }
+  } else if (type==='gunpowder') {
+    // Dense yellow-white flash, lots of sparks
+    for(let i=0;i<count*1.2;i++) {
+      const a=Math.random()*Math.PI*2, spd=1+Math.random()*4*(r/6);
+      spawnVFX(cx,cy, Math.cos(a)*spd, Math.sin(a)*spd-2,
+        8+Math.floor(Math.random()*12),
+        240+Math.floor(Math.random()*15), 200+Math.floor(Math.random()*55), 20+Math.floor(Math.random()*80),
+        1+Math.random()*1.5);
+    }
+  } else if (type==='gas') {
+    // Greenish-yellow soft cloud burst
+    for(let i=0;i<count;i++) {
+      const a=Math.random()*Math.PI*2, spd=0.3+Math.random()*2*(r/5);
+      spawnVFX(cx,cy, Math.cos(a)*spd, Math.sin(a)*spd-0.5,
+        20+Math.floor(Math.random()*30),
+        80+Math.floor(Math.random()*80), 180+Math.floor(Math.random()*75), 60+Math.floor(Math.random()*60),
+        2+Math.random()*3);
+    }
+    // Smaller fire sparks inside
+    for(let i=0;i<count*0.4;i++) {
+      const a=Math.random()*Math.PI*2, spd=Math.random()*1.5;
+      spawnVFX(cx,cy, Math.cos(a)*spd, Math.sin(a)*spd-1,
+        10, 255,120,0, 1.5);
+    }
+  } else if (type==='nitro') {
+    // Violent blue-white, very fast
+    for(let i=0;i<count*1.5;i++) {
+      const a=Math.random()*Math.PI*2, spd=2+Math.random()*5*(r/8);
+      const blue=Math.random()<0.5;
+      spawnVFX(cx,cy, Math.cos(a)*spd, Math.sin(a)*spd-2,
+        10+Math.floor(Math.random()*15),
+        blue?100:240, blue?180:240, blue?255:255,
+        1+Math.random()*2);
+    }
+  } else if (type==='c4') {
+    // Massive white-blue pressure wave + heavy debris
+    for(let i=0;i<count*2;i++) {
+      const a=Math.random()*Math.PI*2, spd=1+Math.random()*6*(r/12);
+      const t=Math.random();
+      spawnVFX(cx,cy, Math.cos(a)*spd, Math.sin(a)*spd-2,
+        15+Math.floor(Math.random()*20),
+        t<0.33?255:t<0.66?180:80,
+        t<0.33?255:t<0.66?200:80,
+        t<0.33?255:t<0.66?255:80,
+        1+Math.random()*3);
+    }
+    // Ring pulse
+    for(let i=0;i<40;i++) {
+      const a=(i/40)*Math.PI*2, spd=r*0.5+Math.random();
+      spawnVFX(cx,cy, Math.cos(a)*spd, Math.sin(a)*spd,
+        8, 255,255,220, 3);
+    }
+  } else if (type==='oil') {
+    // Black smoke + orange fire chunks
+    for(let i=0;i<count;i++) {
+      const a=Math.random()*Math.PI*2, spd=0.4+Math.random()*2.5*(r/8);
+      const smoke=Math.random()<0.5;
+      spawnVFX(cx,cy, Math.cos(a)*spd, Math.sin(a)*spd-0.8,
+        18+Math.floor(Math.random()*20),
+        smoke?40+Math.floor(Math.random()*40):220+Math.floor(Math.random()*35),
+        smoke?40+Math.floor(Math.random()*30):60+Math.floor(Math.random()*60),
+        smoke?40:0,
+        smoke?3+Math.random()*3:1.5+Math.random()*2);
+    }
+  }
+}
+ 
+// ========== FIREWORKS EXPLOSION ==========
+function fireworksExplode(x, y) {
+  set(x,y,EMPTY);
+ 
+  // Pick a random burst style
+  const style = Math.floor(Math.random()*5);
+  const burstColors = [
+    [[255,50,50],[255,180,0]],       // red+gold
+    [[50,150,255],[200,255,255]],    // blue+cyan
+    [[180,0,255],[255,100,255]],     // purple+pink
+    [[0,255,100],[255,255,0]],       // green+yellow
+    [[255,100,0],[255,255,200]],     // orange+white
+  ];
+  const [colA, colB] = burstColors[style];
+ 
+  // Streaking trails — long fast particles
+  const arms = 6+Math.floor(Math.random()*10);
+  for (let arm=0;arm<arms;arm++) {
+    const baseAngle = (arm/arms)*Math.PI*2 + Math.random()*0.3;
+    const armLen = 6+Math.floor(Math.random()*10);
+    const col = Math.random()<0.5 ? colA : colB;
+    for (let s=0;s<armLen;s++) {
+      const spd = 0.8+s*0.25+Math.random()*0.4;
+      const jitter = (Math.random()-0.5)*0.25;
+      const life = 18+s*2+Math.floor(Math.random()*8);
+      spawnVFX(x,y,
+        Math.cos(baseAngle+jitter)*spd,
+        Math.sin(baseAngle+jitter)*spd,
+        life,
+        col[0]+Math.floor(Math.random()*30-15),
+        col[1]+Math.floor(Math.random()*30-15),
+        col[2]+Math.floor(Math.random()*30-15),
+        1.2+Math.random()*1.5);
+    }
+  }
+ 
+  // Sparkling center burst
+  for(let i=0;i<40;i++) {
+    const a=Math.random()*Math.PI*2, spd=Math.random()*2;
+    spawnVFX(x,y, Math.cos(a)*spd, Math.sin(a)*spd-0.5,
+      15, 255,255,220, 2);
+  }
+ 
+  // Leave some glowing debris in the grid too
+  const r=5+Math.floor(Math.random()*4);
+  for(let i=0;i<30;i++) {
+    const a=Math.random()*Math.PI*2, dist=Math.random()*r;
+    const nx=Math.round(x+Math.cos(a)*dist);
+    const ny=Math.round(y+Math.sin(a)*dist);
+    if(nx>=0&&nx<GRID_W&&ny>=0&&ny<GRID_H&&get(nx,ny)===EMPTY) {
+      set(nx,ny,SPARK,6+Math.floor(Math.random()*10));
+    }
+  }
+}
+ 
+// ========== UPDATE BOMB/GUNPOWDER/GAS/NITRO/C4 with typed explosions ==========
+function explodeBomb(x,y) { explode(x,y,10,'bomb'); }
+function explodeGunpowder(x,y) { explode(x,y,6,'gunpowder'); }
+function explodeGas(x,y) { explode(x,y,5,'gas'); }
+function explodeNitro(x,y) { explode(x,y,10,'nitro'); }
+function explodeC4(x,y) { explode(x,y,14,'c4'); }
+function explodeOil(x,y) { explode(x,y,7,'oil'); }
+ 
+// ========== WIND/FAN PRESSURE LINES ==========
+// Each line is a small curved wisp: {x,y,vx,vy,life,maxLife,wobble,wobbleSpeed,alpha}
+let windLines = [];
+ 
+function emitWindLine(gx, gy, vx, vy) {
+  const maxLife = 35 + Math.floor(Math.random()*25); // longer life = slower fade
+  windLines.push({
+    x: gx*CELL + CELL/2 + (Math.random()-0.5)*CELL*3,
+    y: gy*CELL + CELL/2 + (Math.random()-0.5)*CELL*3,
+    vx: vx * 0.18,           // much slower movement
+    vy: vy * 0.18,
+    life: maxLife,
+    maxLife,
+    wobble: 0,
+    wobbleSpeed: (Math.random()-0.5)*0.15,  // gentle side-to-side wave
+    alpha: 0.12 + Math.random()*0.15        // semi-transparent from the start
+  });
+}
+ 
+function updateWindLines() {
+  for(let i=windLines.length-1;i>=0;i--) {
+    const w=windLines[i];
+    w.wobble += w.wobbleSpeed;
+    // perpendicular nudge for wavy motion
+    const perp = { x: -w.vy, y: w.vx };
+    w.x += w.vx + Math.sin(w.wobble)*0.4*perp.x;
+    w.y += w.vy + Math.sin(w.wobble)*0.4*perp.y;
+    w.life--;
+    if(w.life <= 0) windLines.splice(i,1);
+  }
+  // cap to avoid buildup
+  if(windLines.length > 120) windLines.splice(0, windLines.length-120);
+}
+ 
+// ========== MAIN SIMULATION STEP ==========
+function step() {
+  updated.fill(0);
+  // iterate bottom to top, alternating left-right
+  const leftToRight = Math.random()<0.5;
+  for (let y=GRID_H-1;y>=0;y--) {
+    const xStart=leftToRight?0:GRID_W-1;
+    const xEnd=leftToRight?GRID_W:-1;
+    const xStep=leftToRight?1:-1;
+    for (let x=xStart;x!==xEnd;x+=xStep) {
+      const i=idx(x,y);
+      if (updated[i]||grid[i]===EMPTY||grid[i]===WALL) continue;
+      updated[i]=1;
+      const t=grid[i];
+      switch(t) {
+        case POWDER: updatePowder(x,y); break;
+        case WATER: updateWater(x,y); break;
+        case FIRE: updateFire(x,y); break;
+        case SEED: updateSeed(x,y); break;
+        case WOOD: updateWood(x,y); break;
+        case VINE: updateVine(x,y); break;
+        case GUNPOWDER: updateGunpowder(x,y); break;
+        case ICE: updateIce(x,y); break;
+        case SNOW: updateSnow(x,y); break;
+        case OIL: updateOil(x,y); break;
+        case STONE: updateStone(x,y); break;
+        case MAGMA: updateMagma(x,y); break;
+        case METAL: updateMetal(x,y); break;
+        case GLASS: updateGlass(x,y); break;
+        case BOMB: updateBomb(x,y); break;
+        case C4: updateC4(x,y); break;
+        case FIREWORKS: updateFireworks(x,y); break;
+        case ACID: updateAcid(x,y); break;
+        case SALT: updateSalt(x,y); break;
+        case SEAWATER: updateSeawater(x,y); break;
+        case SOAPY: updateSoapy(x,y); break;
+        case MERCURY: updateMercury(x,y); break;
+        case THUNDER: updateThunder(x,y); break;
+        case LASER: updateLaser(x,y); break;
+        case SPARK: updateSpark(x,y); break;
+        case FUSE: updateFuse(x,y); break;
+        case TORCH: updateTorch(x,y); break;
+        case CLOUD: updateCloud(x,y); break;
+        case PUMP: updatePump(x,y); break;
+        case CLONE: updateClone(x,y); break;
+        case VIRUS: updateVirus(x,y); break;
+        case NITRO: updateNitro(x,y); break;
+        case ANT: updateAnt(x,y); break;
+        case BIRD: updateBird(x,y); break;
+        case FAN: updateFan(x,y); break;
+        case GAS: updateGas(x,y); break;
+        case STEAM: updateSteam(x,y); break;
+        case SMOKE: updateSmoke(x,y); break;
+      }
+    }
+  }
+  // decay wind
+  for (let i=0;i<GRID_W*GRID_H;i++) {
+    windX[i]*=0.9;
+    windY[i]*=0.9;
+  }
+}
+ 
+// ========== RENDERING ==========
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+canvas.width = CANVAS_W;
+canvas.height = CANVAS_H;
+ 
+// Scale canvas to fit
+function resizeCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  const ww = wrap.clientWidth, wh = wrap.clientHeight;
+  const scale = Math.min(ww/CANVAS_W, wh/CANVAS_H, 2);
+  canvas.style.width = (CANVAS_W*scale)+'px';
+  canvas.style.height = (CANVAS_H*scale)+'px';
+}
+window.addEventListener('resize', resizeCanvas);
+setTimeout(resizeCanvas, 100);
+ 
+let imgData = ctx.createImageData(CANVAS_W, CANVAS_H);
+let pix = imgData.data;
+ 
+function render() {
+  // --- Draw grid pixels ---
+  for (let y=0;y<GRID_H;y++) {
+    for (let x=0;x<GRID_W;x++) {
+      const t=grid[idx(x,y)];
+      const c=COLORS[t]||[0,0,0];
+      let r=c[0],g=c[1],b=c[2];
+      if (t===FIRE) { const f=Math.random()*40-20; r=Math.min(255,r+f|0); g=Math.max(0,(g+f*0.5)|0); }
+      if (t===SPARK||t===THUNDER) { const f=Math.random()*60; r=Math.min(255,r+f|0); g=Math.min(255,g+f|0); }
+      if (t===MAGMA) { const f=Math.random()*30; r=Math.min(255,r+f|0); }
+      if (t===LASER) { r=255; g=Math.floor(Math.random()*80); b=Math.floor(Math.random()*80); }
+      for (let cy=0;cy<CELL;cy++) for(let cx=0;cx<CELL;cx++) {
+        const pi=((y*CELL+cy)*CANVAS_W+(x*CELL+cx))*4;
+        pix[pi]=r; pix[pi+1]=g; pix[pi+2]=b; pix[pi+3]=255;
+      }
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+ 
+  // --- Draw wind pressure lines ---
+  updateWindLines();
+  // Emit from cells with wind velocity — very sparse
+  for(let y2=0;y2<GRID_H;y2+=4) for(let x2=0;x2<GRID_W;x2+=4) {
+    const i2=idx(x2,y2);
+    const wx=windX[i2], wy=windY[i2];
+    const mag=Math.sqrt(wx*wx+wy*wy);
+    if(mag>1.2 && Math.random()<0.025) {
+      emitWindLine(x2,y2, wx, wy);
+    }
+  }
+  if(windLines.length>0) {
+    ctx.save();
+    for(const w of windLines) {
+      // fade in then out — peaks at midlife
+      const t = w.life/w.maxLife;
+      const fade = t < 0.3 ? t/0.3 : t > 0.7 ? (t-0.7)/0.3*(-1)+1 : 1;
+      const alpha = w.alpha * fade;
+      if(alpha < 0.01) continue;
+      // Draw as a short dash — just 4px long
+      const spd = Math.sqrt(w.vx*w.vx+w.vy*w.vy)+0.001;
+      const nx2 = w.vx/spd, ny2 = w.vy/spd;
+      const halfLen = 2.5;
+      ctx.strokeStyle=`rgba(160,210,255,${alpha.toFixed(3)})`;
+      ctx.lineWidth=0.9;
+      ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(w.x - nx2*halfLen, w.y - ny2*halfLen);
+      ctx.lineTo(w.x + nx2*halfLen, w.y + ny2*halfLen);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+ 
+  // --- Draw VFX explosion particles ---
+  updateVFX();
+  if(vfxParticles.length>0) {
+    ctx.save();
+    for(const p of vfxParticles) {
+      const alpha=Math.min(1, p.life/p.maxLife * 1.6);
+      const size=p.size*(0.5+0.5*(p.life/p.maxLife));
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+      ctx.fillStyle=`rgba(${p.r},${p.g},${p.b},${alpha.toFixed(2)})`;
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+ 
+// ========== UI SETUP ==========
+let lmbElem = POWDER;
+let rmbElem = WATER;
+let penSize = 3;
+let paused = false;
+let sideLoop = false;
+let simSpeed = 1;
+let currentTool = 'draw';
+ 
+// ---- Icon renderer ----
+// Draws a small representative icon for an element onto a canvas
+function drawElemIcon(canvas2d, elemId) {
+  const ctx2 = canvas2d.getContext('2d');
+  const W = canvas2d.width, H = canvas2d.height;
+  ctx2.clearRect(0,0,W,H);
+  const e = ELEM_NAMES.find(x=>x.id===elemId);
+  if (!e) return;
+ 
+  // Background fill
+  ctx2.fillStyle = e.color;
+  ctx2.fillRect(2,2,W-4,H-4);
+ 
+  // Special visual treatments per element
+  const id = elemId;
+  if (id===FIRE||id===MAGMA||id===TORCH) {
+    // flame-ish gradient
+    const g=ctx2.createRadialGradient(W/2,H,2,W/2,H/3,H*0.7);
+    g.addColorStop(0,'#ff6600'); g.addColorStop(0.5,'#ffaa00'); g.addColorStop(1,'#ff000000');
+    ctx2.fillStyle=g; ctx2.fillRect(2,2,W-4,H-4);
+  }
+  if (id===WATER||id===SEAWATER||id===SOAPY) {
+    const g=ctx2.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,id===SEAWATER?'#2050c0':'#3070e0');
+    g.addColorStop(1,id===SEAWATER?'#102060':'#1040a0');
+    ctx2.fillStyle=g; ctx2.fillRect(2,2,W-4,H-4);
+  }
+  if (id===THUNDER||id===SPARK||id===LASER) {
+    ctx2.fillStyle='#000'; ctx2.fillRect(2,2,W-4,H-4);
+    ctx2.strokeStyle=e.color; ctx2.lineWidth=2;
+    ctx2.beginPath();
+    if (id===LASER) { ctx2.moveTo(4,H/2); ctx2.lineTo(W-4,H/2); }
+    else { ctx2.moveTo(W/2,4); ctx2.lineTo(W/2-4,H/2); ctx2.lineTo(W/2+2,H/2); ctx2.lineTo(W/2-2,H-4); }
+    ctx2.stroke();
+  }
+  if (id===ICE||id===SNOW||id===CLOUD) {
+    const g=ctx2.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,'#cce8ff'); g.addColorStop(1,'#88bbdd');
+    ctx2.fillStyle=g; ctx2.fillRect(2,2,W-4,H-4);
+  }
+  if (id===WOOD||id===FUSE) {
+    // wood grain
+    ctx2.fillStyle=id===WOOD?'#8c5a28':'#a07850'; ctx2.fillRect(2,2,W-4,H-4);
+    ctx2.strokeStyle=id===WOOD?'#6a4020':'#8a6038'; ctx2.lineWidth=1;
+    for(let i=5;i<H;i+=5){ctx2.beginPath();ctx2.moveTo(2,i);ctx2.lineTo(W-2,i+2);ctx2.stroke();}
+  }
+  if (id===VINE||id===SEED) {
+    ctx2.fillStyle=id===VINE?'#204a10':'#306010'; ctx2.fillRect(2,2,W-4,H-4);
+    ctx2.fillStyle=id===VINE?'#50c030':'#80d040';
+    for(let i=0;i<4;i++){ctx2.beginPath();ctx2.arc(4+i*6,H/2+Math.sin(i)*4,3,0,Math.PI*2);ctx2.fill();}
+  }
+  if (id===VIRUS) {
+    ctx2.fillStyle='#110011'; ctx2.fillRect(2,2,W-4,H-4);
+    ctx2.fillStyle='#cc00cc';
+    for(let i=0;i<5;i++){ctx2.beginPath();ctx2.arc(4+Math.random()*22,4+Math.random()*22,2,0,Math.PI*2);ctx2.fill();}
+  }
+  if (id===BOMB||id===C4) {
+    ctx2.fillStyle=id===C4?'#202035':'#222'; ctx2.fillRect(2,2,W-4,H-4);
+    ctx2.fillStyle=id===C4?'#4040a0':'#555';
+    ctx2.beginPath(); ctx2.arc(W/2,H/2+2,7,0,Math.PI*2); ctx2.fill();
+    ctx2.fillStyle='#999'; ctx2.fillRect(W/2-1,3,2,5);
+  }
+  if (id===ANT) {
+    ctx2.fillStyle='#1a1a1a'; ctx2.fillRect(2,2,W-4,H-4);
+    ctx2.fillStyle='#c8a050';
+    ctx2.beginPath();ctx2.ellipse(W/2,H/2-3,4,3,0,0,Math.PI*2);ctx2.fill();
+    ctx2.beginPath();ctx2.ellipse(W/2,H/2+4,5,4,0,0,Math.PI*2);ctx2.fill();
+  }
+  if (id===BIRD) {
+    ctx2.fillStyle='#111'; ctx2.fillRect(2,2,W-4,H-4);
+    ctx2.fillStyle='#c8c864';
+    ctx2.beginPath();ctx2.ellipse(W/2,H/2,6,4,0.3,0,Math.PI*2);ctx2.fill();
+    ctx2.fillStyle='#aaaa44';
+    ctx2.beginPath();ctx2.moveTo(W/2-4,H/2-2);ctx2.lineTo(W/2-10,H/2-8);ctx2.lineTo(W/2,H/2-4);ctx2.fill();
+  }
+  if (id===PUMP) {
+    ctx2.fillStyle='#0a1218'; ctx2.fillRect(2,2,W-4,H-4);
+    ctx2.strokeStyle='#507090'; ctx2.lineWidth=2;
+    ctx2.strokeRect(5,5,W-10,H-10);
+    ctx2.fillStyle='#304050';ctx2.fillRect(7,7,W-14,H-14);
+    ctx2.fillStyle='#6090b0';ctx2.fillRect(W/2-1,5,2,H-10);
+    ctx2.fillRect(5,H/2-1,W-10,2);
+  }
+  if (id===CLONE) {
+    ctx2.fillStyle='#0a000a'; ctx2.fillRect(2,2,W-4,H-4);
+    ctx2.fillStyle='#780078';
+    ctx2.beginPath();ctx2.arc(8,8,4,0,Math.PI*2);ctx2.fill();
+    ctx2.beginPath();ctx2.arc(W-8,H-8,4,0,Math.PI*2);ctx2.fill();
+    ctx2.strokeStyle='#aa00aa';ctx2.lineWidth=1;
+    ctx2.beginPath();ctx2.moveTo(8,8);ctx2.lineTo(W-8,H-8);ctx2.stroke();
+  }
+  if (id===MERCURY) {
+    const g=ctx2.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,'#d0d8e0');g.addColorStop(0.5,'#a0a8b0');g.addColorStop(1,'#707880');
+    ctx2.fillStyle=g; ctx2.fillRect(2,2,W-4,H-4);
+    // droplets
+    ctx2.fillStyle='#e0e8f0';
+    ctx2.beginPath();ctx2.arc(8,H/2,4,0,Math.PI*2);ctx2.fill();
+    ctx2.beginPath();ctx2.arc(20,H/2+2,3,0,Math.PI*2);ctx2.fill();
+  }
+ 
+  // Label text
+  const shortName = e.name.length>6 ? e.name.slice(0,6) : e.name;
+  ctx2.fillStyle='rgba(0,0,0,0.55)';
+  ctx2.fillRect(2,H-12,W-4,10);
+  ctx2.fillStyle='#fff';
+  ctx2.font='bold 6.5px monospace';
+  ctx2.textAlign='center';
+  ctx2.fillText(shortName,W/2,H-4);
+ 
+  // Border
+  ctx2.strokeStyle='rgba(255,255,255,0.15)';
+  ctx2.lineWidth=1;
+  ctx2.strokeRect(2,2,W-4,H-4);
+}
+ 
+// Refresh both slot icons
+function refreshSlotIcons() {
+  drawElemIcon(document.getElementById('icon-lmb'), lmbElem);
+  drawElemIcon(document.getElementById('icon-rmb'), rmbElem);
+  const lmbInfo = ELEM_NAMES.find(x=>x.id===lmbElem);
+  const rmbInfo = ELEM_NAMES.find(x=>x.id===rmbElem);
+  document.getElementById('name-lmb').textContent = lmbInfo ? lmbInfo.name : '';
+  document.getElementById('name-rmb').textContent = rmbInfo ? rmbInfo.name : '';
+}
+ 
+// ---- Element Picker ----
+let pickerTarget = null; // 'lmb' or 'rmb'
+const pickerOverlay = document.getElementById('picker-overlay');
+const picker = document.getElementById('elem-picker');
+const pickerGrid = document.getElementById('picker-grid');
+const pickerTitle = document.getElementById('picker-title');
+ 
+function buildPickerGrid() {
+  pickerGrid.innerHTML = '';
+  ELEM_NAMES.forEach(e => {
+    const item = document.createElement('div');
+    item.className = 'picker-item';
+    item.dataset.id = e.id;
+ 
+    const ic = document.createElement('canvas');
+    ic.className = 'picker-icon';
+    ic.width = 52; ic.height = 52;
+    drawElemIcon(ic, e.id);
+ 
+    const nm = document.createElement('div');
+    nm.className = 'picker-name';
+    nm.textContent = e.name;
+ 
+    item.appendChild(ic);
+    item.appendChild(nm);
+    item.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (pickerTarget === 'lmb') lmbElem = e.id;
+      else rmbElem = e.id;
+      refreshSlotIcons();
+      closePicker();
+    });
+    pickerGrid.appendChild(item);
+  });
+}
+ 
+function updatePickerHighlights() {
+  pickerGrid.querySelectorAll('.picker-item').forEach(item => {
+    const id = +item.dataset.id;
+    item.classList.toggle('selected-lmb', id===lmbElem);
+    item.classList.toggle('selected-rmb', id===rmbElem);
+  });
+}
+ 
+function openPicker(target) {
+  // Toggle: if same target open, close it
+  if (pickerTarget === target && pickerOverlay.classList.contains('visible')) {
+    closePicker(); return;
+  }
+  pickerTarget = target;
+  pickerTitle.textContent = target==='lmb'
+    ? '⬤  LEFT MOUSE BUTTON — SELECT ELEMENT'
+    : '⬤  RIGHT MOUSE / E KEY — SELECT ELEMENT';
+  pickerTitle.style.color = target==='lmb' ? '#4a7aff' : '#ff4a4a';
+  pickerOverlay.classList.add('visible');
+  document.getElementById('slot-lmb').classList.toggle('open', target==='lmb');
+  document.getElementById('slot-rmb').classList.toggle('open', target==='rmb');
+  updatePickerHighlights();
+}
+ 
+function closePicker() {
+  pickerTarget = null;
+  pickerOverlay.classList.remove('visible');
+  document.getElementById('slot-lmb').classList.remove('open');
+  document.getElementById('slot-rmb').classList.remove('open');
+}
+ 
+// Close on overlay background click
+pickerOverlay.addEventListener('click', (e) => {
+  if (e.target === pickerOverlay) closePicker();
+});
+// Close button
+document.getElementById('picker-close').addEventListener('click', closePicker);
+// Close on Escape
+document.addEventListener('keydown', e => { if (e.key==='Escape') closePicker(); });
+ 
+document.getElementById('slot-lmb').addEventListener('click', (e) => {
+  e.stopPropagation();
+  openPicker('lmb');
+});
+document.getElementById('slot-rmb').addEventListener('click', (e) => {
+  e.stopPropagation();
+  openPicker('rmb');
+});
+ 
+// ---- Tool buttons ----
+['draw','erase','wind'].forEach(tool => {
+  document.getElementById('tool-'+tool).addEventListener('click', () => {
+    currentTool = tool;
+    document.querySelectorAll('.side-tool-btn').forEach(b=>b.classList.remove('active'));
+    document.getElementById('tool-'+tool).classList.add('active');
+  });
+});
+ 
+// ---- Bottom bar controls ----
+document.getElementById('pen-size').addEventListener('input', e => {
+  penSize = +e.target.value;
+  document.getElementById('pen-label').textContent = penSize;
+});
+document.getElementById('speed-sel').addEventListener('change', e => simSpeed=+e.target.value);
+document.getElementById('btn-pause').addEventListener('click', () => {
+  paused=!paused;
+  document.getElementById('btn-pause').textContent=paused?'RESUME':'PAUSE';
+  document.getElementById('btn-pause').classList.toggle('active',paused);
+});
+document.getElementById('btn-clear').addEventListener('click', () => {
+  for (let i=0;i<GRID_W*GRID_H;i++) { if(grid[i]!==WALL) { grid[i]=EMPTY; meta[i]=0; } }
+});
+document.getElementById('btn-reset').addEventListener('click', () => {
+  grid.fill(EMPTY); meta.fill(0);
+  for (let x=0;x<GRID_W;x++) { set(x,0,WALL); set(x,GRID_H-1,WALL); }
+  for (let y=0;y<GRID_H;y++) { set(0,y,WALL); set(GRID_W-1,y,WALL); }
+});
+document.getElementById('btn-loop').addEventListener('click', function() {
+  sideLoop=!sideLoop;
+  this.textContent=sideLoop?'LOOP':'OFF';
+  this.classList.toggle('active',sideLoop);
+});
+ 
+// ========== DRAW ON CANVAS ==========
+let isDrawingL = false; // LMB
+let isDrawingR = false; // RMB
+let lastX=-1, lastY=-1;
+ 
+function getGridPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = CANVAS_W / rect.width;
+  const scaleY = CANVAS_H / rect.height;
+  const cx = (e.clientX - rect.left) * scaleX;
+  const cy = (e.clientY - rect.top) * scaleY;
+  return [Math.floor(cx/CELL), Math.floor(cy/CELL)];
+}
+ 
+function drawAt(x, y, elemId) {
+  const r = Math.floor(penSize/2);
+  for (let dx=-r;dx<=r;dx++) for(let dy=-r;dy<=r;dy++) {
+    if (dx*dx+dy*dy>r*r+r) continue;
+    const nx=x+dx, ny=y+dy;
+    if (nx<=0||nx>=GRID_W-1||ny<=0||ny>=GRID_H-1) continue;
+    if (currentTool==='erase') {
+      set(nx,ny,EMPTY);
+    } else if (currentTool==='wind') {
+      const wi=idx(nx,ny);
+      const lx=lastX>=0?x-lastX:0, ly=lastY>=0?y-lastY:0;
+      windX[wi]+=lx*3; windY[wi]+=ly*3;
+    } else {
+      if (dotCount<MAX_DOTS||grid[idx(nx,ny)]!==EMPTY) {
+        if (grid[idx(nx,ny)]===EMPTY) dotCount++;
+        set(nx,ny,elemId,0);
+      }
+    }
+  }
+}
+ 
+function interpolateDraw(x, y, elemId) {
+  if (lastX>=0) {
+    const steps=Math.max(Math.abs(x-lastX),Math.abs(y-lastY),1);
+    for (let s=0;s<=steps;s++) {
+      const ix=Math.round(lastX+(x-lastX)*s/steps);
+      const iy=Math.round(lastY+(y-lastY)*s/steps);
+      drawAt(ix,iy,elemId);
+    }
+  } else {
+    drawAt(x,y,elemId);
+  }
+  lastX=x; lastY=y;
+}
+ 
+canvas.addEventListener('mousedown', e => {
+  e.preventDefault();
+  closePicker();
+  const [x,y]=getGridPos(e);
+  if (e.button===0) { isDrawingL=true; drawAt(x,y,lmbElem); }
+  if (e.button===2) { isDrawingR=true; drawAt(x,y,rmbElem); }
+  lastX=x; lastY=y;
+});
+canvas.addEventListener('mousemove', e => {
+  if (!isDrawingL && !isDrawingR) return;
+  const [x,y]=getGridPos(e);
+  if (isDrawingL) interpolateDraw(x,y,lmbElem);
+  if (isDrawingR) interpolateDraw(x,y,rmbElem);
+});
+canvas.addEventListener('mouseup', e => {
+  if (e.button===0) isDrawingL=false;
+  if (e.button===2) isDrawingR=false;
+  if (!isDrawingL&&!isDrawingR) { lastX=-1; lastY=-1; }
+});
+canvas.addEventListener('mouseleave', ()=>{ isDrawingL=false; isDrawingR=false; lastX=-1; lastY=-1; });
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+ 
+// E key = draw with RMB element
+let eKeyDown = false;
+document.addEventListener('keydown', e => {
+  if (e.key==='e'||e.key==='E') eKeyDown=true;
+});
+document.addEventListener('keyup', e => {
+  if (e.key==='e'||e.key==='E') eKeyDown=false;
+});
+// Override mousemove/down for E key draw
+canvas.addEventListener('mousedown', e => {
+  if (e.button===0 && eKeyDown) {
+    isDrawingL=false; isDrawingR=true;
+    const [x,y]=getGridPos(e);
+    drawAt(x,y,rmbElem);
+    lastX=x; lastY=y;
+  }
+}, true);
+ 
+// Touch support
+canvas.addEventListener('touchstart', e=>{e.preventDefault();closePicker();const t=e.touches[0];const[x,y]=getGridPos(t);isDrawingL=true;drawAt(x,y,lmbElem);lastX=x;lastY=y;},{passive:false});
+canvas.addEventListener('touchmove', e=>{e.preventDefault();if(!isDrawingL)return;const t=e.touches[0];const[x,y]=getGridPos(t);interpolateDraw(x,y,lmbElem);},{passive:false});
+canvas.addEventListener('touchend', ()=>{isDrawingL=false;lastX=-1;lastY=-1;});
+ 
+// ========== INIT ==========
+buildPickerGrid();
+refreshSlotIcons();
+ 
+// border walls
+for (let x=0;x<GRID_W;x++) { set(x,0,WALL); set(x,GRID_H-1,WALL); }
+for (let y=0;y<GRID_H;y++) { set(0,y,WALL); set(GRID_W-1,y,WALL); }
+ 
+// ========== GAME LOOP ==========
+let lastTime=0, frameCount=0, fpsTime=0, fpsVal=0;
+let stepAccum=0; // fractional step accumulator for speed control
+// Speed values now represent steps-per-frame as a fraction
+// simSpeed=1 → 0.25 steps/frame (quarter speed), 2→0.5, 4→1, 8→2
+const SPEED_RATES = {1:0.25, 2:0.5, 4:1.0};
+ 
+function gameLoop(ts) {
+  requestAnimationFrame(gameLoop);
+  const dt=ts-lastTime; lastTime=ts;
+  frameCount++;
+  fpsTime+=dt;
+  if (fpsTime>=1000) {
+    fpsVal=frameCount;
+    frameCount=0;fpsTime=0;
+    dotCount=countDots();
+    document.getElementById('dotcount').textContent=dotCount+'dot';
+    document.getElementById('fps-display').textContent=fpsVal+'fps';
+  }
+  if (!paused) {
+    stepAccum += SPEED_RATES[simSpeed] || 0.25;
+    while (stepAccum >= 1) {
+      step();
+      stepAccum -= 1;
+    }
+  }
+  render();
+}
+ 
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
