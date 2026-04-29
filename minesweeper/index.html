@@ -20,7 +20,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:12px 8px;min-
 #music-btn{padding:3px 10px;border:1px solid #555;background:transparent;font-size:11px;cursor:pointer;border-radius:4px;letter-spacing:1px;font-family:monospace;white-space:nowrap}
 #music-label{font-size:10px;letter-spacing:2px;flex:1;text-align:center}
 #vol-slider{width:60px;accent-color:#888}
-#grid-wrap{width:100%;display:flex;justify-content:center;align-items:center}
+#grid-wrap{width:100%;display:flex;justify-content:center;align-items:center;position:relative}
 #grid{display:grid;margin:0 auto;cursor:default}
 .cell{border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;user-select:none;transition:transform .08s}
 .cell:hover:not(.revealed):not(.flagged){transform:scale(1.08)}
@@ -39,8 +39,17 @@ body{display:flex;flex-direction:column;align-items:center;padding:12px 8px;min-
 .end-box button{padding:8px 22px;background:transparent;border:1px solid currentColor;font-size:12px;cursor:pointer;border-radius:6px;letter-spacing:2px;font-family:monospace}
 .mode-row{display:flex;gap:5px;margin-bottom:8px;width:100%;max-width:620px}
 #collapse-btn{width:100%;max-width:620px;background:transparent;border:1px solid #444;border-radius:4px;color:#555;font-size:14px;cursor:pointer;padding:3px 0;margin-bottom:4px}
+#pause-save-row{display:flex;gap:5px;margin-bottom:8px;width:100%;max-width:620px}
+#pause-btn,#save-btn{flex:1;padding:4px 5px;border:1px solid #333;background:transparent;color:#666;font-family:monospace;font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:1px}
+#board-blur-overlay{display:none;position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;backdrop-filter:blur(6px);background:rgba(0,0,0,0.35);border-radius:3px}
+#confirm-modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999;border-radius:10px;padding:24px 28px;min-width:260px;text-align:center}
+#confirm-modal p{font-size:11px;margin-bottom:18px;line-height:1.6;letter-spacing:1px}
+#confirm-modal h3{font-size:13px;letter-spacing:3px;margin-bottom:10px}
+.confirm-btns{display:flex;gap:10px;justify-content:center}
+.confirm-btns button{padding:6px 18px;background:transparent;font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:2px;font-family:monospace}
+#confirm-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:998;background:rgba(0,0,0,0.6)}
 #collapse-btn:hover{color:#888}
-.collapsed #theme-bar,.collapsed #mode-row,.collapsed #timebomb-row,.collapsed #custom-row,.collapsed #diff-row,.collapsed #music-bar,.collapsed #game-title-wrap,.collapsed #stats-bar{display:none!important}
+.collapsed #theme-bar,.collapsed #mode-row,.collapsed #timebomb-row,.collapsed #custom-row,.collapsed #diff-row,.collapsed #music-bar,.collapsed #game-title-wrap,.collapsed #stats-bar,.collapsed #pause-save-row{display:none!important}
 .collapsed #collapse-btn{margin-bottom:0}
 .mbtn{flex:1;padding:4px 5px;border:1px solid #333;background:transparent;color:#666;font-family:monospace;font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:1px}
 .mbtn.active{font-weight:700}
@@ -90,6 +99,10 @@ body{display:flex;flex-direction:column;align-items:center;padding:12px 8px;min-
     <div class="stat-col" id="stat-med"><div class="stat-col-label">med</div><div class="stat-col-best" id="best-1">--:--</div><div class="stat-col-wl" id="wl-1">0W 0L</div></div>
     <div class="stat-col" id="stat-hard"><div class="stat-col-label">hard</div><div class="stat-col-best" id="best-2">--:--</div><div class="stat-col-wl" id="wl-2">0W 0L</div></div>
   </div>
+  <div id="pause-save-row">
+    <button id="pause-btn" onclick="togglePause()">⏸ pause</button>
+    <button id="save-btn" onclick="openSaveMenu()">💾 save</button>
+  </div>
   <div class="panel" id="panel">
     <div class="stat"><div class="stat-label" id="mine-label">mines</div><div class="stat-val" id="mine-count">10</div></div>
     <button class="reset-btn" id="reset-btn" onclick="newGame()">◉</button>
@@ -101,7 +114,7 @@ body{display:flex;flex-direction:column;align-items:center;padding:12px 8px;min-
     <input id="vol-slider" type="range" min="0" max="100" value="40" step="1" oninput="setMusicVol(this.value)">
   </div>
   <button id="collapse-btn" onclick="toggleCollapse()">▲</button>
-  <div id="grid-wrap"><div id="grid"></div></div>
+  <div id="grid-wrap"><div id="grid"></div><div id="board-blur-overlay"></div></div>
   <div id="end-area"></div>
 </div>
 <button id="shortcuts-btn" onclick="toggleShortcuts()">⌨ shortcuts</button>
@@ -115,6 +128,16 @@ body{display:flex;flex-direction:column;align-items:center;padding:12px 8px;min-
   <div class="sk"><span>toggle music</span><span>M</span></div>
   <div class="sk"><span>flag hovered cell</span><span>X</span></div>
   <div class="sk"><span>collapse menu</span><span>C</span></div>
+  <div class="sk"><span>pause game</span><span>P</span></div>
+</div>
+<div id="confirm-overlay" onclick="closeConfirm()"></div>
+<div id="confirm-modal">
+  <h3 id="confirm-title">CONFIRM</h3>
+  <p id="confirm-msg"></p>
+  <div class="confirm-btns">
+    <button id="confirm-yes" onclick="confirmAction()">YES</button>
+    <button onclick="closeConfirm()">CANCEL</button>
+  </div>
 </div>
 <div id="lives-bar">
   <div id="hearts-display"></div>
@@ -182,6 +205,7 @@ document.addEventListener('keydown',e=>{
   }
   if(e.key==='m'||e.key==='M')toggleMusic();
   if(e.key==='c'||e.key==='C')toggleCollapse();
+  if(e.key==='p'||e.key==='P')togglePause();
 });
 document.addEventListener('keyup',e=>{if(e.key==='x'||e.key==='X')xKeyHeld=false;});
 let sfxAC=null,musicAC=null,musicGain=null,musicPlaying=false,musicScheduled=[],musicBeat=0,musicNextTime=0,musicTimer=null;
@@ -198,6 +222,10 @@ function isSolvable(b,si){const rev=Array(rows*cols).fill(false),flg=Array(rows*
 function generateNoGuessBoard(si){const safe=new Set([si,...neighbors(si)]),cands=[];for(let i=0;i<rows*cols;i++){if(!safe.has(i))cands.push(i);}for(let a=0;a<2000;a++){for(let i=cands.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cands[i],cands[j]]=[cands[j],cands[i]];}const b=Array(rows*cols).fill(0);cands.slice(0,mineCount).forEach(i=>{b[i]=9;});calcNumbers(b);if(isSolvable(b,si))return b;}const b=Array(rows*cols).fill(0),c2=[...cands];for(let i=c2.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[c2[i],c2[j]]=[c2[j],c2[i]];}c2.slice(0,mineCount).forEach(i=>{b[i]=9;});calcNumbers(b);return b;}
 function applyThemeStyles(){const T=THEMES[curTheme];document.body.style.background=T.bg;document.body.style.fontFamily=T.font;document.getElementById('panel').style.cssText=T.panelStyle;['mine-label','time-label'].forEach(id=>document.getElementById(id).style.color=T.statLabelColor);['mine-count','timer'].forEach(id=>document.getElementById(id).style.color=T.statValColor);document.getElementById('reset-btn').style.cssText=T.resetStyle+';font-family:'+T.font+';background:transparent';
 document.getElementById('reset-btn').oncontextmenu=(e)=>{e.preventDefault();replayBoard();};document.getElementById('game-title').style.cssText=`font-family:${T.titleFont};color:${T.titleColor};font-size:22px;font-weight:700;letter-spacing:5px`;document.getElementById('game-title').textContent=T.titleText;document.getElementById('game-sub').style.cssText=`color:${T.accent2};font-size:10px;letter-spacing:3px;margin-bottom:10px`;document.getElementById('game-sub').textContent=T.subtitleText;document.querySelectorAll('.tbtn').forEach(b=>{const a=b.dataset.theme===curTheme;b.style.cssText=T.btnStyle(a)+';font-family:'+T.font;});document.querySelectorAll('.dbtn').forEach(b=>{b.style.borderColor=T.border;b.style.color=T.accent2;b.style.fontFamily=T.font;});document.querySelectorAll('.mbtn').forEach(b=>{const a=b.dataset.mode===curMode;b.style.cssText=`border-color:${a?T.accent:T.border};color:${a?T.accent:T.accent2};font-family:${T.font};background:${a?T.panel:'transparent'}`});const tbr=document.getElementById('timebomb-row');tbr.style.cssText=`display:${curMode==='timebomb'?'flex':'none'};align-items:center;gap:8px;margin-bottom:8px;padding:5px 10px;border:1px solid ${T.border};border-radius:6px;width:100%;max-width:620px`;updateCustomRow(T);document.getElementById('tb-label').style.color=T.accent;document.getElementById('tb-val').style.color=T.accent2;document.getElementById('tb-countdown').style.color=T.accent;['tb-minus','tb-plus'].forEach(id=>{const el=document.getElementById(id);el.style.borderColor=T.border;el.style.color=T.accent2;});updateTBDisplay();const lt=document.getElementById('lives-toggle');lt.style.cssText=`padding:4px 10px;border:1px solid ${livesMode?T.accent:T.border};background:transparent;color:${livesMode?T.accent:T.accent2};font-size:9px;cursor:pointer;border-radius:4px;font-family:${T.font};letter-spacing:1px`;lt.textContent=livesMode?'♥ lives on':'♥ lives off';updateHeartsDisplay();updateMusicBar();
+const pb=document.getElementById('pause-btn');
+if(pb){pb.style.borderColor=gamePaused?T.accent:T.border;pb.style.color=gamePaused?T.accent:T.accent2;pb.style.fontFamily=T.font;}
+const svb=document.getElementById('save-btn');
+if(svb){svb.style.borderColor=T.border;svb.style.color=T.accent2;svb.style.fontFamily=T.font;}
 const cb=document.getElementById('collapse-btn');
 if(cb){cb.style.color=T.accent;cb.style.borderColor=T.border;}
 const sb=document.getElementById('shortcuts-btn');
@@ -210,7 +238,7 @@ updateStatsBar();}
 function buildUI(){Object.keys(THEMES).forEach(k=>{if(k==='aquarium')return;const b=document.createElement('button');b.className='tbtn'+(k===curTheme?' active':'');b.dataset.theme=k;b.textContent=THEMES[k].name;b.onclick=()=>{document.querySelectorAll('.tbtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');curTheme=k;applyThemeStyles();startBgAnim();if(musicPlaying){stopMusic();startMusic();}newGame();};
  
     document.getElementById('theme-bar').appendChild(b);});['easy 9x9','med 16x16','hard 30x16'].forEach((label,i)=>{const b=document.createElement('button');b.className='dbtn';b.textContent=label;b.onclick=()=>{diff=i;newGame();};document.getElementById('diff-row').appendChild(b);});[{mode:'classic',label:'CLASSIC'},{mode:'timebomb',label:'⏱ TIME BOMB'},{mode:'custom',label:'✎ CUSTOM'}].forEach(({mode,label})=>{const b=document.createElement('button');b.className='mbtn'+(mode===curMode?' active':'');b.dataset.mode=mode;b.textContent=label;b.onclick=()=>{curMode=mode;applyThemeStyles();newGame();};document.getElementById('mode-row').appendChild(b);});}
-function newGame(){const D=DIFFS[diff];if(curMode==='custom'){cols=customCols;rows=customRows;mineCount=customMines;}else{cols=D.cols;rows=D.rows;mineCount=D.mines;}clearInterval(timerInt);clearInterval(tbInterval);tbInterval=null;tbRemaining=tbSeconds;seconds=0;chainTimeouts.forEach(t=>clearTimeout(t));chainTimeouts=[];document.getElementById('timer').textContent='000';document.getElementById('mine-count').textContent=mineCount;document.getElementById('reset-btn').textContent='◉';document.getElementById('end-area').innerHTML='';board=Array(rows*cols).fill(0);revealed=Array(rows*cols).fill(false);flagged=Array(rows*cols).fill(false);deadMines=[];livesLeft=livesMode?3:null;gameState='playing';firstClick=true;exParticles=[];tileParticles=[];if(exAnimId){cancelAnimationFrame(exAnimId);exAnimId=null;}if(tileAnimId){cancelAnimationFrame(tileAnimId);tileAnimId=null;}exCtx.clearRect(0,0,exCanvas.width,exCanvas.height);tileCtx.clearRect(0,0,tileCanvas.width,tileCanvas.height);updateTBDisplay();updateHeartsDisplay();computeCellSize();renderGrid();}
+function newGame(){const D=DIFFS[diff];if(curMode==='custom'){cols=customCols;rows=customRows;mineCount=customMines;}else{cols=D.cols;rows=D.rows;mineCount=D.mines;}clearInterval(timerInt);clearInterval(tbInterval);tbInterval=null;tbRemaining=tbSeconds;seconds=0;chainTimeouts.forEach(t=>clearTimeout(t));chainTimeouts=[];document.getElementById('timer').textContent='000';document.getElementById('mine-count').textContent=mineCount;document.getElementById('reset-btn').textContent='◉';document.getElementById('end-area').innerHTML='';board=Array(rows*cols).fill(0);revealed=Array(rows*cols).fill(false);flagged=Array(rows*cols).fill(false);deadMines=[];livesLeft=livesMode?3:null;gameState='playing';firstClick=true;gamePaused=false;document.getElementById('board-blur-overlay').style.display='none';exParticles=[];tileParticles=[];if(exAnimId){cancelAnimationFrame(exAnimId);exAnimId=null;}if(tileAnimId){cancelAnimationFrame(tileAnimId);tileAnimId=null;}exCtx.clearRect(0,0,exCanvas.width,exCanvas.height);tileCtx.clearRect(0,0,tileCanvas.width,tileCanvas.height);updateTBDisplay();updateHeartsDisplay();computeCellSize();renderGrid();}
 function styleCell(el,idx){const T=THEMES[curTheme],sz=cellSize;el.className='cell';el.style.fontFamily=T.font;el.textContent='';el.style.color='';el.style.width=sz+'px';el.style.height=sz+'px';el.style.fontSize=Math.max(8,Math.round(sz*0.45))+'px';if(revealed[idx]){el.classList.add('revealed');el.style.background=T.cellRevealed;el.style.border=`1px solid ${T.border}`;el.style.cursor='default';if(board[idx]===9){el.classList.add('mine-show');el.style.color=deadMines.includes(idx)?T.accent2:T.mineColor;el.style.fontSize=Math.max(8,Math.round(sz*0.5))+'px';}else if(board[idx]>0){el.textContent=board[idx];el.style.color=T.numColors[board[idx]-1];}el.onmouseenter=null;el.onmouseleave=null;}else if(flagged[idx]){el.classList.add('flagged');el.style.background=T.cellHidden;el.style.border=`1px solid ${T.border}`;el.style.cursor='pointer';el.style.color=T.flagColor;el.style.fontSize=Math.max(8,Math.round(sz*0.5))+'px';el.onmouseenter=null;el.onmouseleave=null;}else{const r=Math.floor(idx/cols),c=idx%cols,checker=(r+c)%2===0;const cb=checker?T.cellHidden:T.cellHidden2;const cborder=checker?T.cellHidden2:T.border;el.style.background=cb;el.style.border=`1px solid ${cborder}`;el.style.cursor='pointer';el.onmouseenter=()=>{el.style.background=T.cellHover;hoveredCell=idx;};el.onmouseleave=()=>{el.style.background=cb;el.style.borderColor=cborder;if(hoveredCell===idx)hoveredCell=null;};}}
 function renderGrid(){const g=document.getElementById('grid');g.style.gridTemplateColumns=`repeat(${cols},${cellSize}px)`;g.style.gap='2px';g.innerHTML='';for(let i=0;i<rows*cols;i++){const c=document.createElement('div');styleCell(c,i);c.addEventListener('click',()=>handleClick(i));c.addEventListener('contextmenu',e=>{e.preventDefault();handleFlag(i);});g.appendChild(c);}syncCanvases();}
 function getCellEl(idx){return document.getElementById('grid').querySelectorAll('.cell')[idx]||null;}
@@ -219,10 +247,10 @@ function spawnTileFall(idx){const el=getCellEl(idx);if(!el)return;const rect=el.
 function startTileLoop(){function loop(){tileCtx.clearRect(0,0,tileCanvas.width,tileCanvas.height);tileParticles=tileParticles.filter(p=>p.life>0);tileParticles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.08;p.rot+=p.rotV;p.life-=p.decay;tileCtx.save();tileCtx.globalAlpha=Math.max(0,p.life);tileCtx.translate(p.x+p.w/2,p.y+p.h/2);tileCtx.rotate(p.rot);tileCtx.fillStyle=p.color;tileCtx.strokeStyle=p.borderColor;tileCtx.lineWidth=1;tileCtx.beginPath();tileCtx.roundRect(-p.w/2,-p.h/2,p.w,p.h,3);tileCtx.fill();tileCtx.stroke();tileCtx.restore();});if(tileParticles.length>0){tileAnimId=requestAnimationFrame(loop);}else{tileAnimId=null;tileCtx.clearRect(0,0,tileCanvas.width,tileCanvas.height);}}tileAnimId=requestAnimationFrame(loop);}
 function revealBFS(startIdx){const queue=[startIdx],visited=new Set([startIdx]),order=[];while(queue.length){const cur=queue.shift();order.push(cur);if(board[cur]===0){neighbors(cur).forEach(j=>{if(!visited.has(j)&&!revealed[j]&&!flagged[j]&&board[j]!==9){visited.add(j);queue.push(j);}});}}order.forEach(i=>{revealed[i]=true;});order.forEach((idx,i)=>{setTimeout(()=>{spawnTileFall(idx);const el=getCellEl(idx);if(!el)return;styleCell(el,idx);el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');el.addEventListener('animationend',()=>el.classList.remove('pop'),{once:true});},i*20);});return order.length;}
 function triggerWinRipple(){const T=THEMES[curTheme];const cells=document.getElementById('grid').querySelectorAll('.cell');const cr=Math.floor(rows/2),cc=Math.floor(cols/2);for(let i=0;i<rows*cols;i++){const r=Math.floor(i/cols),c=i%cols,dist=Math.sqrt((r-cr)**2+(c-cc)**2);setTimeout(()=>{const el=cells[i];if(!el)return;el.classList.remove('win-ripple');void el.offsetWidth;el.classList.add('win-ripple');el.style.borderColor=T.accent;setTimeout(()=>{el.style.borderColor=T.border;el.classList.remove('win-ripple');},350);},dist*55);}}
-function handleClick(idx){if(gameState!=='playing'||revealed[idx])return;if(xKeyHeld){handleFlag(idx);return;}if(flagged[idx])return;const T=THEMES[curTheme];const ac=getSfxAC();if(firstClick){firstClick=false;board=generateNoGuessBoard(idx);savedBoard=[...board];startTimer();screenShake(6,350);
+function handleClick(idx){if(gamePaused||gameState!=='playing'||revealed[idx])return;if(xKeyHeld){handleFlag(idx);return;}if(flagged[idx])return;const T=THEMES[curTheme];const ac=getSfxAC();if(firstClick){firstClick=false;board=generateNoGuessBoard(idx);savedBoard=[...board];startTimer();screenShake(6,350);
       const fcp=getCellCenter(idx);
       for(let r=0;r<5;r++){setTimeout(()=>{exParticles.push(makeRing(fcp.x,fcp.y,THEMES[curTheme].accent,1/40));startExLoop();},r*60);}}if(board[idx]===9){if(livesMode&&livesLeft>1){livesLeft--;T.sound(ac,'mine');screenShake(10,400);deadMines.push(idx);revealed[idx]=true;const el=getCellEl(idx);if(el)styleCell(el,idx);const pos=getCellCenter(idx);THEMES[curTheme].explode(pos.x,pos.y);updateHeartsDisplay();return;}gameState='lost';clearInterval(timerInt);clearInterval(tbInterval);tbInterval=null;document.getElementById('reset-btn').textContent='✕';T.sound(ac,'mine');screenShake(14,500);triggerChainExplosion(idx);recordLoss(diff);showEnd(false);return;}T.sound(ac,'reveal');const count=revealBFS(idx);setTimeout(()=>{if(checkWin()){gameState='won';clearInterval(timerInt);clearInterval(tbInterval);tbInterval=null;document.getElementById('reset-btn').textContent='✓';T.sound(ac,'win');triggerWinRipple();recordWin(diff,seconds);setTimeout(()=>showEnd(true),900);}},count*20+80);}
-function handleFlag(idx){if(gameState!=='playing'||revealed[idx])return;flagged[idx]=!flagged[idx];THEMES[curTheme].sound(getSfxAC(),'flag');const remaining=mineCount-flagged.filter(Boolean).length;
+function handleFlag(idx){if(gamePaused||gameState!=='playing'||revealed[idx])return;flagged[idx]=!flagged[idx];THEMES[curTheme].sound(getSfxAC(),'flag');const remaining=mineCount-flagged.filter(Boolean).length;
 document.getElementById('mine-count').textContent=remaining;
 document.getElementById('mine-count').style.color=remaining<0?'#ff4444':THEMES[curTheme].statValColor;const el=getCellEl(idx);if(el)styleCell(el,idx);}
 function triggerChainExplosion(hitIdx){const others=[];for(let i=0;i<rows*cols;i++){if(board[i]===9&&i!==hitIdx&&!deadMines.includes(i))others.push(i);}for(let i=others.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[others[i],others[j]]=[others[j],others[i]];}const seq=hitIdx===-1?[...others]:[hitIdx,...others];const ef=THEMES[curTheme].explode;seq.forEach((idx,order)=>{const delay=order===0?0:100+(order-1)*100+Math.random()*60-30;const t=setTimeout(()=>{revealed[idx]=true;const el=getCellEl(idx);if(el)styleCell(el,idx);const pos=getCellCenter(idx);ef(pos.x,pos.y);},delay);chainTimeouts.push(t);});}
@@ -1023,6 +1051,150 @@ function adjustTB(delta){tbSeconds=Math.max(10,Math.min(600,tbSeconds+delta));up
 function toggleLives(){livesMode=!livesMode;applyThemeStyles();newGame();}
 function updateHeartsDisplay(){const d=document.getElementById('hearts-display');const T=THEMES[curTheme];if(!d)return;if(livesMode&&gameState==='playing'){d.style.display='block';d.style.color=T.accent;d.textContent='♥'.repeat(livesLeft)+'♡'.repeat(Math.max(0,3-livesLeft));}else{d.style.display='none';}}
 let menuCollapsed=false;
+let gamePaused=false;
+let pendingAction=null; // 'save' or 'load'
+ 
+// ── PAUSE ─────────────────────────────────────────────────────────────────────
+function togglePause(){
+  if(gameState!=='playing'&&!gamePaused)return;
+  gamePaused=!gamePaused;
+  const btn=document.getElementById('pause-btn');
+  const overlay=document.getElementById('board-blur-overlay');
+  const T=THEMES[curTheme];
+  if(gamePaused){
+    // Stop timers
+    clearInterval(timerInt);timerInt=null;
+    clearInterval(tbInterval);tbInterval=null;
+    overlay.style.display='block';
+    btn.textContent='▶ resume';
+    btn.style.color=T.accent;btn.style.borderColor=T.accent;
+  } else {
+    overlay.style.display='none';
+    btn.textContent='⏸ pause';
+    btn.style.color=T.accent2;btn.style.borderColor=T.border;
+    // Only restart if game was actually running (firstClick means timer hasn't started yet)
+    if(!firstClick){
+      clearInterval(timerInt);
+      timerInt=setInterval(()=>{seconds++;document.getElementById('timer').textContent=String(Math.min(seconds,999)).padStart(3,'0');},1000);
+      if(curMode==='timebomb'&&tbRemaining>0){
+        clearInterval(tbInterval);
+        tbInterval=setInterval(()=>{tbRemaining--;updateTBDisplay();if(tbRemaining<=0){clearInterval(tbInterval);tbInterval=null;if(gameState==='playing'){gameState='lost';clearInterval(timerInt);document.getElementById('reset-btn').textContent='✕';THEMES[curTheme].sound(getSfxAC(),'mine');screenShake(14,500);triggerChainExplosion(-1);recordLoss(diff);showEnd(false,'time ran out');}}},1000);
+      }
+    }
+  }
+}
+ 
+// ── SAVE / LOAD ───────────────────────────────────────────────────────────────
+function openSaveMenu(){
+  const T=THEMES[curTheme];
+  const hasSave=!!localStorage.getItem('ms_save');
+  // Show save modal with two action buttons
+  const modal=document.getElementById('confirm-modal');
+  const overlay=document.getElementById('confirm-overlay');
+  modal.style.cssText=`display:block;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999;border-radius:10px;padding:24px 28px;min-width:280px;text-align:center;background:${T.panel};border:1px solid ${T.border};font-family:${T.font};color:${T.text}`;
+  overlay.style.display='block';
+  document.getElementById('confirm-title').style.color=T.accent;
+  document.getElementById('confirm-title').textContent='SAVE / LOAD';
+  document.getElementById('confirm-msg').textContent=hasSave?'what would you like to do?':'no save file found. save current board?';
+  document.getElementById('confirm-yes').style.display='none';
+  // Replace confirm buttons with save/load pair
+  document.querySelector('.confirm-btns').innerHTML=`
+    <button onclick="promptSave()" style="padding:6px 14px;background:transparent;border:1px solid ${T.accent};color:${T.accent};font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:2px;font-family:${T.font}">SAVE</button>
+    ${hasSave?`<button onclick="promptLoad()" style="padding:6px 14px;background:transparent;border:1px solid ${T.accent2};color:${T.accent2};font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:2px;font-family:${T.font}">LOAD</button>`:''}
+    <button onclick="closeConfirm()" style="padding:6px 14px;background:transparent;border:1px solid ${T.border};color:${T.text};font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:2px;font-family:${T.font}">CANCEL</button>`;
+}
+function promptSave(){
+  if(gameState!=='playing'&&gameState!=='won'&&gameState!=='lost')return;
+  pendingAction='save';
+  const T=THEMES[curTheme];
+  const hasSave=!!localStorage.getItem('ms_save');
+  document.getElementById('confirm-title').textContent='SAVE GAME';
+  document.getElementById('confirm-msg').textContent=hasSave?'are you SURE you want to save? this will override your previous save.':'save current board progress?';
+  document.querySelector('.confirm-btns').innerHTML=`
+    <button onclick="confirmAction()" style="padding:6px 18px;background:transparent;border:1px solid ${T.accent};color:${T.accent};font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:2px;font-family:${T.font}">CONFIRM</button>
+    <button onclick="closeConfirm()" style="padding:6px 18px;background:transparent;border:1px solid ${T.border};color:${T.text};font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:2px;font-family:${T.font}">CANCEL</button>`;
+}
+function promptLoad(){
+  pendingAction='load';
+  const T=THEMES[curTheme];
+  document.getElementById('confirm-title').textContent='LOAD GAME';
+  document.getElementById('confirm-msg').textContent='load your saved game? your current board will be overwritten.';
+  document.querySelector('.confirm-btns').innerHTML=`
+    <button onclick="confirmAction()" style="padding:6px 18px;background:transparent;border:1px solid ${T.accent};color:${T.accent};font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:2px;font-family:${T.font}">CONFIRM</button>
+    <button onclick="closeConfirm()" style="padding:6px 18px;background:transparent;border:1px solid ${T.border};color:${T.text};font-size:10px;cursor:pointer;border-radius:4px;letter-spacing:2px;font-family:${T.font}">CANCEL</button>`;
+}
+function confirmAction(){
+  if(pendingAction==='save') doSave();
+  else if(pendingAction==='load') doLoad();
+  closeConfirm();
+}
+function closeConfirm(){
+  document.getElementById('confirm-modal').style.display='none';
+  document.getElementById('confirm-overlay').style.display='none';
+  pendingAction=null;
+  // Restore confirm-btns to default for shortcuts modal reuse
+  const T=THEMES[curTheme];
+  document.querySelector('.confirm-btns').innerHTML=`<button id="confirm-yes" onclick="confirmAction()">YES</button><button onclick="closeConfirm()">CANCEL</button>`;
+}
+function doSave(){
+  try{
+    const save={
+      board:[...board],revealed:[...revealed],flagged:[...flagged],
+      seconds,diff,cols,rows,mineCount,curTheme,curMode,
+      tbSeconds,tbRemaining,livesMode,livesLeft,
+      deadMines:[...deadMines],gameState,firstClick
+    };
+    localStorage.setItem('ms_save',JSON.stringify(save));
+    showToast('game saved!');
+  }catch(e){showToast('save failed');}
+}
+function doLoad(){
+  try{
+    const raw=localStorage.getItem('ms_save');
+    if(!raw){showToast('no save found');return;}
+    const save=JSON.parse(raw);
+    // Stop current timers
+    clearInterval(timerInt);clearInterval(tbInterval);tbInterval=null;
+    chainTimeouts.forEach(t=>clearTimeout(t));chainTimeouts=[];
+    exParticles=[];tileParticles=[];
+    if(exAnimId){cancelAnimationFrame(exAnimId);exAnimId=null;}
+    if(tileAnimId){cancelAnimationFrame(tileAnimId);tileAnimId=null;}
+    exCtx.clearRect(0,0,exCanvas.width,exCanvas.height);
+    tileCtx.clearRect(0,0,tileCanvas.width,tileCanvas.height);
+    // Restore state
+    diff=save.diff;cols=save.cols;rows=save.rows;mineCount=save.mineCount;
+    board=[...save.board];revealed=[...save.revealed];flagged=[...save.flagged];
+    seconds=save.seconds;curMode=save.curMode;tbSeconds=save.tbSeconds;
+    tbRemaining=save.tbRemaining;livesMode=save.livesMode;livesLeft=save.livesLeft;
+    deadMines=[...save.deadMines];gameState=save.gameState;firstClick=save.firstClick;
+    // Restore theme
+    if(save.curTheme&&THEMES[save.curTheme]){
+      curTheme=save.curTheme;
+      document.querySelectorAll('.tbtn').forEach(b=>{b.classList.toggle('active',b.dataset.theme===curTheme);});
+    }
+    document.getElementById('timer').textContent=String(Math.min(seconds,999)).padStart(3,'0');
+    document.getElementById('mine-count').textContent=mineCount-flagged.filter(Boolean).length;
+    document.getElementById('reset-btn').textContent=gameState==='won'?'✓':gameState==='lost'?'✕':'◉';
+    document.getElementById('end-area').innerHTML='';
+    applyThemeStyles();startBgAnim();
+    if(musicPlaying){stopMusic();startMusic();}
+    // Restart timer if game was in progress
+    if(gameState==='playing'&&!firstClick){
+      timerInt=setInterval(()=>{seconds++;document.getElementById('timer').textContent=String(Math.min(seconds,999)).padStart(3,'0');},1000);
+      if(curMode==='timebomb'&&tbRemaining>0){
+        tbInterval=setInterval(()=>{tbRemaining--;updateTBDisplay();if(tbRemaining<=0){clearInterval(tbInterval);tbInterval=null;if(gameState==='playing'){gameState='lost';clearInterval(timerInt);document.getElementById('reset-btn').textContent='✕';THEMES[curTheme].sound(getSfxAC(),'mine');screenShake(14,500);triggerChainExplosion(-1);recordLoss(diff);showEnd(false,'time ran out');}}},1000);
+      }
+    }
+    updateHeartsDisplay();updateTBDisplay();computeCellSize();renderGrid();
+    showToast('game loaded!');
+  }catch(e){showToast('load failed: save may be corrupted');}
+}
+function showToast(msg){
+  let t=document.getElementById('toast');
+  if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:8px 18px;border-radius:6px;font-size:11px;letter-spacing:2px;z-index:9999;pointer-events:none;transition:opacity 0.4s';document.body.appendChild(t);}
+  t.textContent=msg;t.style.opacity='1';
+  clearTimeout(t._to);t._to=setTimeout(()=>{t.style.opacity='0';},1800);
+}
 let savedBoard=null; // for replay same board
  
 // ── STATS (localStorage) ──────────────────────────────────────────────────────
