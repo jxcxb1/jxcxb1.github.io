@@ -22,7 +22,7 @@
       margin-bottom: 8px;
       color: #00f5ff;
     }
-    p {
+    p.sub {
       font-size: 11px;
       color: #446688;
       letter-spacing: 3px;
@@ -36,83 +36,122 @@
       max-width: 900px;
     }
     .card {
-      border: 1px solid #1a3a6a;
+      border: 1px solid;
       border-radius: 10px;
       padding: 28px 24px;
-      background: #0d1033;
       text-decoration: none;
       color: #fff;
-      transition: border-color 0.2s, transform 0.2s;
+      transition: filter 0.2s, transform 0.2s;
       display: flex;
       flex-direction: column;
       gap: 10px;
     }
     .card:hover {
-      border-color: #00f5ff;
+      filter: brightness(1.15);
       transform: translateY(-3px);
     }
     .card-title {
       font-size: 18px;
       letter-spacing: 4px;
-      color: #00f5ff;
+      font-weight: bold;
     }
     .card-desc {
       font-size: 11px;
-      color: #6688aa;
       line-height: 1.6;
       letter-spacing: 1px;
+      opacity: 0.75;
     }
     .card-tag {
       font-size: 9px;
-      color: #00f5ff;
-      border: 1px solid #1a3a6a;
+      border: 1px solid;
       border-radius: 4px;
       padding: 2px 8px;
       align-self: flex-start;
       letter-spacing: 2px;
+      opacity: 0.8;
     }
+
+    /* Minesweeper — original cyan */
+    .card-minesweeper { background: #0d1033; border-color: #1a3a6a; }
+    .card-minesweeper .card-title { color: #00f5ff; }
+    .card-minesweeper .card-tag { color: #00f5ff; border-color: #1a3a6a; }
+
+    /* Flappy Bird — yellow */
+    .card-flappy { background: #1a1500; border-color: #4a3a00; }
+    .card-flappy .card-title { color: #ffe033; }
+    .card-flappy .card-tag { color: #ffe033; border-color: #4a3a00; }
+
+    /* Chipbeat — green */
+    .card-chipbeat { background: #001a08; border-color: #004a18; }
+    .card-chipbeat .card-title { color: #00e05a; }
+    .card-chipbeat .card-tag { color: #00e05a; border-color: #004a18; }
+
+    /* Wordle — lime green */
+    .card-wordle { background: #0e1a00; border-color: #2e4a00; }
+    .card-wordle .card-title { color: #aaee00; }
+    .card-wordle .card-tag { color: #aaee00; border-color: #2e4a00; }
+
+    /* Sudoku — white */
+    .card-sudoku { background: #181818; border-color: #444; }
+    .card-sudoku .card-title { color: #f0f0f0; }
+    .card-sudoku .card-tag { color: #f0f0f0; border-color: #444; }
+
+    /* Powder Game — darker blue */
+    .card-powder { background: #060d1f; border-color: #0e2050; }
+    .card-powder .card-title { color: #4488ff; }
+    .card-powder .card-tag { color: #4488ff; border-color: #0e2050; }
+
+    /* Star Blast — purple */
+    .card-starblast { background: #100820; border-color: #301850; }
+    .card-starblast .card-title { color: #cc66ff; }
+    .card-starblast .card-tag { color: #cc66ff; border-color: #301850; }
+
+    /* Idle Miner — orange */
+    .card-idleminer { background: #1a0a00; border-color: #4a2200; }
+    .card-idleminer .card-title { color: #ff8833; }
+    .card-idleminer .card-tag { color: #ff8833; border-color: #4a2200; }
   </style>
 </head>
 <body>
   <h1>GAMES</h1>
-  <p>// click to play //</p>
+  <p class="sub">// click to play //</p>
   <div class="games">
-    <a class="card" href="/minesweeper">
+    <a class="card card-minesweeper" href="/minesweeper">
       <div class="card-tag">PUZZLE</div>
       <div class="card-title">MINESWEEPER</div>
       <div class="card-desc">15 themes, chiptune music, time bomb mode, lives mode. breach the grid.</div>
     </a>
-    <a class="card" href="/flappy">
+    <a class="card card-flappy" href="/flappy">
       <div class="card-tag">ARCADE</div>
       <div class="card-title">FLAPPY BIRD</div>
       <div class="card-desc">tap to flap. don't hit the pipes.</div>
     </a>
-    <a class="card" href="/chipbeat">
+    <a class="card card-chipbeat" href="/chipbeat">
       <div class="card-tag">MUSIC</div>
       <div class="card-title">CHIPBEAT</div>
       <div class="card-desc">chiptune step sequencer. make beats.</div>
     </a>
-    <a class="card" href="/wordle">
+    <a class="card card-wordle" href="/wordle">
       <div class="card-tag">WORD</div>
       <div class="card-title">WORDLE</div>
       <div class="card-desc">guess the 5 letter word in 6 tries.</div>
     </a>
-    <a class="card" href="/sudoku">
+    <a class="card card-sudoku" href="/sudoku">
       <div class="card-tag">PUZZLE</div>
       <div class="card-title">SUDOKU</div>
       <div class="card-desc">logic puzzle game. fill the board.</div>
     </a>
-     <a class="card" href="/powdergame">
+    <a class="card card-powder" href="/powdergame">
       <div class="card-tag">SANDBOX</div>
       <div class="card-title">POWDER GAME (WIP)</div>
       <div class="card-desc">pixel sandbox. mess around with chemical reactions.</div>
     </a>
-    <a class="card" href="/starblast">
+    <a class="card card-starblast" href="/starblast">
       <div class="card-tag">SHOOTER</div>
       <div class="card-title">STAR BLAST</div>
       <div class="card-desc">wave based space shooter.</div>
     </a>
-    <a class="card" href="/idleminer">
+    <a class="card card-idleminer" href="/idleminer">
       <div class="card-tag">TYCOON</div>
       <div class="card-title">IDLE MINER</div>
       <div class="card-desc">dig deeper. unlock new mines. earn offline.</div>
