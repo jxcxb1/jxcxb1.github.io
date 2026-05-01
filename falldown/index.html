@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FALL DOWN</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; background:#0a0a0f; font-family:monospace; }
+body { display:flex; justify-content:center; align-items:stretch; }
+#wrap { position:relative; flex-shrink:0; }
+canvas { display:block; height:100vh; box-shadow:0 0 40px rgba(0,200,255,0.1); }
+#ui { position:absolute; top:10px; left:0; right:0; display:flex; justify-content:space-between; padding:0 16px; pointer-events:none; }
+.sb { text-align:center; }
+.sl { font-size:8px; letter-spacing:3px; color:#334; }
+.sv { font-size:20px; font-weight:700; color:#00d4ff; line-height:1.1; }
+#zoneEl { position:absolute; top:10px; left:0; right:0; text-align:center; font-size:9px; letter-spacing:3px; color:#556; pointer-events:none; margin-top:2px; }
+#ov { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; background:rgba(5,5,15,0.93); }
+#ov h1 { font-size:40px; font-weight:700; letter-spacing:4px; color:#fff; text-shadow:0 0 30px rgba(0,212,255,0.6); }
+.osub { font-size:10px; color:#556; letter-spacing:3px; }
+#oScore { font-size:28px; font-weight:700; color:#00d4ff; display:none; }
+.ohint { font-size:10px; color:#445; letter-spacing:2px; text-align:center; line-height:1.9; }
+.puleg { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+.pui { font-size:9px; letter-spacing:1px; }
+#startBtn { padding:11px 34px; background:transparent; border:1px solid #00d4ff; color:#00d4ff; font-family:monospace; font-size:13px; letter-spacing:4px; cursor:pointer; margin-top:4px; }
+#startBtn:hover { background:rgba(0,212,255,0.08); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="ui">
+    <div class="sb"><div class="sl">SCORE</div><div class="sv" id="scoreEl">0</div></div>
+    <div class="sb"><div class="sl">BEST</div><div class="sv" id="bestEl">0</div></div>
+  </div>
+  <div id="zoneEl">ZONE 1</div>
+  <div id="ov">
+    <h1>FALL DOWN</h1>
+    <div class="osub">ENDLESS MODE</div>
+    <div id="oScore"></div>
+    <div class="ohint">← → or A D to roll<br>edges wrap around<br>every 200pts enters a new zone</div>
+    <div class="puleg">
+      <span class="pui" style="color:#00ffcc">⬤ TIME STOP</span>
+      <span class="pui" style="color:#ff6b35">⬤ VANISH</span>
+      <span class="pui" style="color:#ff88cc">⬤ TINY BALL</span>
+      <span class="pui" style="color:#ffdd00">⬤ SLOW LASER</span>
+    </div>
+    <button id="startBtn">START</button>
+  </div>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+ 
+// Size canvas to fill screen height, keep a natural portrait ratio
+const H = window.innerHeight;
+const W = Math.min(Math.round(H * (400/600)), window.innerWidth);
+canvas.width  = W;
+canvas.height = H;
+document.getElementById('wrap').style.width  = W + 'px';
+document.getElementById('wrap').style.height = H + 'px';
+ 
+// All constants scale relative to H so physics feel identical on any screen
+const SCALE   = H / 600;
+const BALL_R  = Math.round(9  * SCALE);
+const PLAT_H  = Math.round(10 * SCALE);
+const PLAT_GAP  = Math.round(68 * SCALE);
+const PLAT_ROWS = 13;
+const GRAVITY   = 0.36;
+const MOVE_SPD  = 7.5;
+const LASER_BASE  = 1.9 * SCALE;
+const LASER_MAX   = 20   * SCALE;
+const CATCHUP_DIST = H * 0.55;
+const MAX_GAP = 25 * SCALE;
+ 
+const scoreEl = document.getElementById('scoreEl');
+const bestEl  = document.getElementById('bestEl');
+const zoneEl  = document.getElementById('zoneEl');
+const ov      = document.getElementById('ov');
+const oScore  = document.getElementById('oScore');
+const startBtn= document.getElementById('startBtn');
+ 
+let best = 0, gs = null, raf = null;
+const keys = {};
+let touchDir = 0;
+ 
+document.addEventListener('keydown', e => { keys[e.key] = true; });
+document.addEventListener('keyup',   e => { keys[e.key] = false; });
+canvas.addEventListener('touchstart', e => {
+  const r = canvas.getBoundingClientRect();
+  touchDir = (e.touches[0].clientX - r.left) * (W / r.width) < W/2 ? -1 : 1;
+  e.preventDefault();
+}, {passive:false});
+canvas.addEventListener('touchend', () => { touchDir = 0; });
+ 
+// ── ZONES ──────────────────────────────────────────────────────────────────
+// Each zone: name, platform color (body fill), platform highlight color,
+// laser speed bonus added on top of LASER_BASE
+const ZONES = [
+  { name:'ZONE 1',  neon:'#00aaff', laserBonus:0    },
+  { name:'ZONE 2',  neon:'#aa44ff', laserBonus:0.5  },
+  { name:'ZONE 3',  neon:'#aaee00', laserBonus:1.0  },
+  { name:'ZONE 4',  neon:'#ff7700', laserBonus:1.6  },
+  { name:'ZONE 5',  neon:'#ff2288', laserBonus:2.2  },
+  { name:'ZONE 6',  neon:'#00eebb', laserBonus:2.9  },
+  { name:'ZONE 7',  neon:'#ffdd00', laserBonus:3.6  },
+  { name:'ZONE 8',  neon:'#ff3333', laserBonus:4.4  },
+];
+ 
+function getZone(score) {
+  const idx = Math.min(Math.floor(score / 200), ZONES.length - 1);
+  return { ...ZONES[idx], idx };
+}
+ 
+// Flash overlay when entering a new zone
+let zoneFlash = 0; // ms remaining
+ 
+// ── POWERUPS ───────────────────────────────────────────────────────────────
+const PU_TYPES = [
+  { type:'freeze', color:'#00ffcc', label:'TIME STOP'  },
+  { type:'vanish', color:'#ff6b35', label:'VANISH'     },
+  { type:'slow',   color:'#ffdd00', label:'SLOW LASER' },
+  { type:'tiny',   color:'#ff88cc', label:'TINY BALL'  },
+];
+ 
+// ── PLATFORM GENERATION ────────────────────────────────────────────────────
+// Tracks how many rows have passed without a left/right edge segment, and
+// occasionally spawns one that reaches the edge to prevent infinite edge-hugging.
+let rowsSinceLeftEdge = 0;
+let rowsSinceRightEdge = 0;
+ 
+function makePlatRow(y) {
+  // 1-3 segments per row, weighted toward 2
+  const roll = Math.random();
+  const count = roll < 0.2 ? 1 : roll < 0.75 ? 2 : 3;
+  const minGap  = BALL_R * 2 + 12;
+  // Wide range: short platforms exist but long ones are common
+  const minSegW = Math.round(W * 0.12);
+  const maxSegW = Math.round(W * 0.58);
+ 
+  const segs = [];
+  let attempts = 0;
+  while (segs.length < count && attempts < 300) {
+    attempts++;
+    const sw = minSegW + Math.random() * (maxSegW - minSegW);
+    const sx = Math.random() * (W - sw);
+    let ok = true;
+    for (const s of segs) {
+      if (sx < s.x + s.w + minGap && sx + sw > s.x - minGap) { ok = false; break; }
+    }
+    if (ok) segs.push({ x: sx, w: sw });
+  }
+  segs.sort((a, b) => a.x - b.x);
+ 
+  // Every 3-5 rows, snap the leftmost segment to x=0
+  rowsSinceLeftEdge++;
+  if (rowsSinceLeftEdge >= 3 + Math.floor(Math.random() * 3)) {
+    segs[0].x = 0;
+    rowsSinceLeftEdge = 0;
+  }
+ 
+  // Every 3-5 rows, snap the rightmost segment to touch x=W
+  rowsSinceRightEdge++;
+  if (rowsSinceRightEdge >= 3 + Math.floor(Math.random() * 3)) {
+    const last = segs[segs.length - 1];
+    last.x = W - last.w;
+    rowsSinceRightEdge = 0;
+  }
+ 
+  return { y, segs, vanished: false, vAlpha: 1 };
+}
+ 
+// ── POWERUP BALL ────────────────────────────────────────────────────────────
+// One rolling powerup ball exists at a time. Spawns every 8-14 seconds,
+// rolls across platforms like the player (gravity + horizontal velocity),
+// wraps horizontally, despawns if it exits vertically off the visible area.
+let puBallTimer = 0; // ms until next spawn attempt
+const PU_SPAWN_MIN = 8000;
+const PU_SPAWN_MAX = 14000;
+ 
+function schedulePU(s) {
+  s.puBall = null;
+  puBallTimer = PU_SPAWN_MIN + Math.random() * (PU_SPAWN_MAX - PU_SPAWN_MIN);
+}
+ 
+function spawnPUBall(s) {
+  const pu = PU_TYPES[Math.floor(Math.random() * PU_TYPES.length)];
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  // Spawn just off the appropriate edge, at roughly ball level
+  const x = dir === 1 ? -BALL_R : W + BALL_R;
+  const y = s.ball.y - H * 0.2 - Math.random() * H * 0.15;
+  s.puBall = {
+    x, y,
+    vx: dir * (MOVE_SPD * 0.55 + Math.random() * MOVE_SPD * 0.25),
+    vy: 0,
+    roll: 0,
+    type: pu.type,
+    color: pu.color,
+    label: pu.label,
+  };
+}
+ 
+// ── INIT ───────────────────────────────────────────────────────────────────
+function initState() {
+  const plats = [];
+  for (let i = 0; i < PLAT_ROWS; i++) plats.push(makePlatRow(i * PLAT_GAP + 160));
+  return {
+    ball: { x: W/2, y: 100, vx: 0, vy: 0, roll: 0 },
+    plats,
+    particles: [],
+    floaters: [],
+    laser:  { y: -30, speed: LASER_BASE },
+    score:  0,
+    zone:   0,
+    frozen: false, freezeT: 0,
+    laserSlow: false, slowT: 0,
+    tinyBall: false, tinyT: 0,
+    puBall: null,
+    dead:   false,
+  };
+  return gs_tmp;
+}
+ 
+// ── POWERUP APPLY ──────────────────────────────────────────────────────────
+function applyPU(s, puType, x, y) {
+  if (puType === 'freeze') { s.frozen = true; s.freezeT = 3000; }
+  else if (puType === 'vanish') {
+    // Clear ALL visible platforms below the player
+    s.plats
+      .filter(p => p.y > s.ball.y && p.y < s.ball.y + H)
+      .forEach(p => { p.vanished = true; });
+  }
+  else if (puType === 'slow') { s.laserSlow = true; s.slowT = 4000; }
+  else if (puType === 'tiny') { s.tinyBall = true; s.tinyT = 5000; }
+ 
+  const pu = PU_TYPES.find(t => t.type === puType);
+  for (let i = 0; i < 14; i++) {
+    const a = (i/14)*Math.PI*2, sp = 1.5 + Math.random()*2.5;
+    s.particles.push({ x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, color:pu.color, size:2+Math.random()*3, life:666, max:666 });
+  }
+  s.floaters.push({ text:pu.label, x, y, color:pu.color, life:1000, max:1000 });
+}
+ 
+// ── UPDATE ─────────────────────────────────────────────────────────────────
+function update(s, dt) {
+  if (s.dead) return;
+  const t60 = dt / (1000/60); // normalise to 60fps tick for physics
+ 
+  if (s.freezeT > 0) { s.freezeT -= dt; if (s.freezeT <= 0) s.frozen = false; }
+  if (s.slowT  > 0) { s.slowT -= dt;   if (s.slowT  <= 0) s.laserSlow = false; }
+  if (s.tinyT  > 0) { s.tinyT -= dt;   if (s.tinyT  <= 0) s.tinyBall = false; }
+  if (zoneFlash > 0) zoneFlash -= dt;
+ 
+  // Zone check
+  const newZoneIdx = Math.min(Math.floor(s.score / 200), ZONES.length - 1);
+  if (newZoneIdx !== s.zone) {
+    s.zone = newZoneIdx;
+    zoneFlash = 833;
+    zoneEl.textContent = ZONES[newZoneIdx].name;
+    zoneEl.style.color = ZONES[newZoneIdx].neon;
+    // Particle burst at top of screen
+    for (let i = 0; i < 30; i++) {
+      s.particles.push({
+        x: Math.random()*W, y: 0,
+        vx:(Math.random()-0.5)*4, vy:1+Math.random()*3,
+        color: ZONES[newZoneIdx].neon,
+        size: 2+Math.random()*3, life:50, max:50
+      });
+    }
+  }
+ 
+  // ── Player (always active) ──
+  {
+    let dir = 0;
+    if (keys['ArrowLeft']  || keys['a'] || keys['A']) dir = -1;
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) dir =  1;
+    if (touchDir !== 0) dir = touchDir;
+ 
+    // Momentum: accelerate toward target speed, decelerate with friction when no input
+    const targetVx = dir * MOVE_SPD;
+    if (dir !== 0) {
+      // Accelerate — ramp up over ~200ms
+      s.ball.vx += (targetVx - s.ball.vx) * (1 - Math.pow(0.012, t60));
+    } else {
+      // Friction — coast to a stop over ~120ms
+      s.ball.vx *= Math.pow(0.04, t60 / 60);
+    }
+ 
+    s.ball.vy += GRAVITY * t60;
+    s.ball.vy  = Math.min(s.ball.vy, 14);
+    s.ball.roll += (s.ball.vx / BALL_R) * t60;
+ 
+    const prevY = s.ball.y;
+    s.ball.x += s.ball.vx * t60;
+    s.ball.y += s.ball.vy * t60;
+ 
+    if (s.ball.x < -BALL_R) s.ball.x = W + BALL_R;
+    if (s.ball.x > W + BALL_R) s.ball.x = -BALL_R;
+ 
+    // Full AABB + circle collision — top surface AND sides are solid
+    const bR = s.tinyBall ? Math.round(BALL_R * 0.45) : BALL_R;
+    const b = s.ball;
+    for (const p of s.plats) {
+      if (p.vanished) continue;
+      for (const seg of p.segs) {
+        // Broad phase: ball must be near the platform rect at all
+        const nearX = b.x > seg.x - bR && b.x < seg.x + seg.w + bR;
+        const nearY = b.y > p.y - bR && b.y < p.y + PLAT_H + bR;
+        if (!nearX || !nearY) continue;
+ 
+        // Clamp ball center to the nearest point on the rect
+        const closestX = Math.max(seg.x, Math.min(b.x, seg.x + seg.w));
+        const closestY = Math.max(p.y,   Math.min(b.y, p.y + PLAT_H));
+        const dx = b.x - closestX;
+        const dy = b.y - closestY;
+        const dist2 = dx * dx + dy * dy;
+ 
+        if (dist2 < bR * bR && dist2 > 0) {
+          const dist = Math.sqrt(dist2);
+          const nx = dx / dist; // normal pointing from rect toward ball
+          const ny = dy / dist;
+ 
+          // Push ball out of the rect
+          const overlap = bR - dist;
+          // Never push the ball upward — only horizontal pushes for side collisions.
+          // Upward resolution (landing on top) is only allowed when the ball is
+          // genuinely above the platform top (ny is strongly upward and ball fell onto it).
+          const pushingUp = ny < 0; // ny < 0 means push goes toward top of screen
+          const fallingDown = b.vy > 0;
+          if (pushingUp && fallingDown && closestY > p.y) {
+            // Ball hit a side corner while falling — only push horizontally
+            b.x += nx * overlap;
+            // Don't touch b.y or b.vy — let gravity carry it down past the platform
+          } else {
+            b.x += nx * overlap;
+            b.y += ny * overlap;
+            // Cancel velocity into surface
+            const vDotN = b.vx * nx + b.vy * ny;
+            if (vDotN < 0) {
+              b.vx -= vDotN * nx;
+              b.vy -= vDotN * ny;
+            }
+          }
+        }
+      }
+    }
+ 
+    // Scroll
+    const targetY = H * 0.56;
+    if (s.ball.y > targetY) {
+      const sc = (s.ball.y - targetY) * (1 - Math.pow(0.91, t60));
+      s.ball.y  -= sc;
+      s.laser.y -= sc;
+      for (const p of s.plats) p.y -= sc;
+      s.score += sc * 0.05;
+      scoreEl.textContent = Math.floor(s.score);
+    }
+  }
+ 
+  // ── Laser (frozen = halted) ──
+  if (!s.frozen) {
+    const zone      = ZONES[s.zone];
+    const baseSpeed = LASER_BASE + zone.laserBonus;
+    const dist      = s.ball.y - s.laser.y;
+ 
+    if (dist > CATCHUP_DIST) {
+      const excess = dist - CATCHUP_DIST;
+      const target = Math.min(baseSpeed + excess * 0.09, LASER_MAX);
+      s.laser.speed += (target - s.laser.speed) * (1 - Math.pow(0.85, t60));
+    } else {
+      s.laser.speed = baseSpeed;
+    }
+    s.laser.y += s.laser.speed * (s.laserSlow ? 0.3 : 1) * t60;
+  }
+ 
+  // Regen platforms
+  s.plats = s.plats.filter(p => p.y > -120);
+  while (s.plats.length < PLAT_ROWS) {
+    const maxY = Math.max(...s.plats.map(p => p.y));
+    s.plats.push(makePlatRow(maxY + PLAT_GAP));
+  }
+  for (const p of s.plats) {
+    if (p.vanished) p.vAlpha = Math.max(0, p.vAlpha - 0.06 * t60);
+  }
+ 
+  // ── Powerup ball ──
+  if (!s.frozen) {
+    puBallTimer -= dt;
+    if (!s.puBall && puBallTimer <= 0) spawnPUBall(s);
+ 
+    if (s.puBall) {
+      const pb = s.puBall;
+      pb.vy += GRAVITY * t60;
+      pb.vy  = Math.min(pb.vy, 14);
+      pb.roll += (pb.vx / BALL_R) * t60;
+      pb.x += pb.vx * t60;
+      pb.y += pb.vy * t60;
+ 
+      // Wrap horizontally
+      if (pb.x < -BALL_R) pb.x = W + BALL_R;
+      if (pb.x > W + BALL_R) pb.x = -BALL_R;
+ 
+      // Land on platforms (same logic as player)
+      for (const p of s.plats) {
+        if (p.vanished) continue;
+        if (pb.vy > 0) {
+          const bot = pb.y + BALL_R, prevBot = (pb.y - pb.vy * t60) + BALL_R;
+          if (prevBot <= p.y + 1 && bot >= p.y) {
+            for (const seg of p.segs) {
+              if (pb.x + BALL_R * 0.6 > seg.x && pb.x - BALL_R * 0.6 < seg.x + seg.w) {
+                pb.y = p.y - BALL_R;
+                pb.vy = 0;
+              }
+            }
+          }
+        }
+      }
+ 
+      // Despawn if scrolled off top or fallen way below screen
+      if (pb.y < s.laser.y - BALL_R * 2 || pb.y > s.ball.y + H) {
+        schedulePU(s);
+      }
+ 
+      // Collect — player touches it
+      const dx = s.ball.x - pb.x, dy = s.ball.y - pb.y;
+      if (Math.sqrt(dx*dx + dy*dy) < BALL_R * 2.2) {
+        applyPU(s, pb.type, pb.x, pb.y);
+        schedulePU(s);
+      }
+    }
+  }
+ 
+  for (const p of s.particles) { p.x += p.vx * t60; p.y += p.vy * t60; p.vy += 0.1 * t60; p.life -= dt; }
+  s.particles = s.particles.filter(p => p.life > 0);
+  for (const f of s.floaters)  { f.y -= 0.7 * t60; f.life -= dt; }
+  s.floaters  = s.floaters.filter(f => f.life > 0);
+ 
+  // Death
+  if (s.ball.y - BALL_R < s.laser.y + 3) {
+    s.dead = true;
+    for (let i = 0; i < 28; i++) {
+      const a = Math.random()*Math.PI*2, sp = 1+Math.random()*4;
+      s.particles.push({ x:s.ball.x, y:s.ball.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-1.5, color:'#00d4ff', size:2+Math.random()*4, life:833, max:833 });
+    }
+    const sc = Math.floor(s.score);
+    if (sc > best) { best = sc; bestEl.textContent = best; }
+    setTimeout(() => showOver(sc), 700);
+  }
+}
+ 
+// ── DRAW ───────────────────────────────────────────────────────────────────
+function drawPUBall(pb) {
+  const r = BALL_R;
+  const cx = pb.x, cy = pb.y;
+  const pu = PU_TYPES.find(t => t.type === pb.type);
+  const col = pu.color;
+ 
+  ctx.save();
+  ctx.translate(cx, cy);
+ 
+  // Shadow
+  ctx.beginPath();
+  ctx.ellipse(0, r*0.9, r*0.7, r*0.2, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fill();
+ 
+  // Clip
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI*2);
+  ctx.clip();
+ 
+  // Dark interior
+  ctx.fillStyle = 'rgba(8,4,18,0.7)';
+  ctx.fillRect(-r, -r, r*2, r*2);
+ 
+  // Spinning swirl in powerup color
+  ctx.save();
+  ctx.rotate(pb.roll);
+  ctx.strokeStyle = col;
+  ctx.lineWidth = r * 0.4;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = col;
+  ctx.shadowBlur = 8;
+  // S-shape: top half curves right, bottom curves left
+  ctx.beginPath();
+  ctx.arc(r * 0.25, -r * 0.28, r * 0.38, Math.PI, 0);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(-r * 0.25, r * 0.28, r * 0.38, 0, Math.PI);
+  ctx.stroke();
+  ctx.restore();
+ 
+  ctx.restore();
+ 
+  // Outer ring — powerup color with glow
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI*2);
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = col;
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+ 
+  // Small glint
+  ctx.beginPath();
+  ctx.arc(-r*0.32, -r*0.32, r*0.14, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.shadowBlur = 0;
+  ctx.fill();
+ 
+  ctx.restore();
+}
+ 
+function drawMarble(cx, cy, r, roll) {
+  ctx.save();
+  ctx.translate(cx, cy);
+ 
+  // Drop shadow
+  ctx.beginPath();
+  ctx.ellipse(0, r*0.9, r*0.7, r*0.2, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fill();
+ 
+  // Clip everything to the circle
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI*2);
+  ctx.clip();
+ 
+  // Hollow interior — nearly transparent dark background
+  ctx.fillStyle = 'rgba(10,5,20,0.55)';
+  ctx.fillRect(-r, -r, r*2, r*2);
+ 
+  // S-shaped swoop — two opposite arcs stacked top to bottom
+  ctx.save();
+  ctx.rotate(roll);
+  ctx.strokeStyle = '#ff9944';
+  ctx.lineWidth = r * 0.36;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = '#ff7722';
+  ctx.shadowBlur = 6;
+  // Top half of S: curves right
+  ctx.beginPath();
+  ctx.arc(r * 0.25, -r * 0.28, r * 0.38, Math.PI, 0);
+  ctx.stroke();
+  // Bottom half of S: curves left (opposite direction)
+  ctx.beginPath();
+  ctx.arc(-r * 0.25, r * 0.28, r * 0.38, 0, Math.PI);
+  ctx.stroke();
+  ctx.restore();
+ 
+  ctx.restore();
+ 
+  // Neon lavender outline ring — drawn outside clip so it sits on top clean
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI*2);
+  ctx.strokeStyle = '#cc88ff';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#cc88ff';
+  ctx.shadowBlur = 10;
+  ctx.stroke();
+ 
+  // Specular glint on the rim
+  ctx.beginPath();
+  ctx.arc(-r*0.32, -r*0.32, r*0.16, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.shadowBlur = 0;
+  ctx.fill();
+ 
+  ctx.restore();
+}
+ 
+function draw(s) {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#07070f';
+  ctx.fillRect(0, 0, W, H);
+ 
+  // Grid
+  ctx.strokeStyle = 'rgba(16,16,40,0.9)'; ctx.lineWidth = 1;
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+ 
+  const zone = ZONES[s.zone];
+ 
+  // Zone flash overlay
+  if (zoneFlash > 0) {
+    ctx.fillStyle = `rgba(0,0,0,${(zoneFlash/833)*0.25})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+ 
+  // Platforms
+  for (const p of s.plats) {
+    const a = p.vanished ? p.vAlpha : 1;
+    if (a <= 0) continue;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.shadowColor = zone.neon;
+    ctx.shadowBlur = 6;
+    for (const seg of p.segs) {
+      ctx.fillStyle = '#000';
+      ctx.strokeStyle = zone.neon;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(seg.x, p.y, seg.w, PLAT_H, 3);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+ 
+    ctx.restore();
+  }
+ 
+  const drawR = s.tinyBall ? Math.round(BALL_R * 0.45) : BALL_R;
+  if (!s.dead) drawMarble(s.ball.x, s.ball.y, drawR, s.ball.roll);
+ 
+  // Powerup ball
+  if (s.puBall) drawPUBall(s.puBall);
+ 
+  // Laser
+  const ly = s.laser.y;
+  [{c:'rgba(255,30,80,0.05)',w:46},{c:'rgba(255,30,80,0.08)',w:22},{c:'rgba(255,50,80,0.22)',w:9},{c:'rgba(255,90,110,0.6)',w:3},{c:'rgba(255,185,195,0.9)',w:1.5}].forEach(l => {
+    ctx.strokeStyle=l.c; ctx.lineWidth=l.w;
+    ctx.beginPath(); ctx.moveTo(0,ly); ctx.lineTo(W,ly); ctx.stroke();
+  });
+ 
+  // Frozen tint
+  if (s.frozen) {
+    ctx.fillStyle = `rgba(0,255,200,${Math.min(1,s.freezeT/333)*0.1})`;
+    ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(0,255,200,0.35)'; ctx.lineWidth=2;
+    ctx.strokeRect(1,1,W-2,H-2);
+  }
+ 
+  // Particles
+  for (const p of s.particles) {
+    ctx.save(); ctx.globalAlpha=p.life/p.max;
+    ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+ 
+  // Floaters
+  ctx.textAlign='center'; ctx.font='bold 10px monospace';
+  for (const f of s.floaters) {
+    ctx.save(); ctx.globalAlpha=f.life/f.max; ctx.fillStyle=f.color;
+    ctx.fillText(f.text,f.x,f.y); ctx.restore();
+  }
+  ctx.textAlign='left';
+ 
+  // Status timers
+  let sy = 52;
+  ctx.textAlign='center'; ctx.font='bold 9px monospace';
+  if (s.frozen)    { ctx.fillStyle='#00ffcc'; ctx.fillText(`TIME STOP ${Math.ceil(s.freezeT/1000)}s`,W/2,sy); sy+=16; }
+  if (s.laserSlow) { ctx.fillStyle='#ffdd00'; ctx.fillText(`SLOW LASER ${Math.ceil(s.slowT/1000)}s`,W/2,sy); sy+=16; }
+  if (s.tinyBall)  { ctx.fillStyle='#ff88cc'; ctx.fillText(`TINY BALL ${Math.ceil(s.tinyT/1000)}s`,W/2,sy); }
+  ctx.textAlign='left';
+}
+ 
+let lastTime = 0;
+function loop(ts) {
+  const dt = Math.min(ts - lastTime, 50); // cap at 50ms to avoid spiral on tab switch
+  lastTime = ts;
+  update(gs, dt);
+  draw(gs);
+  raf = requestAnimationFrame(loop);
+}
+ 
+function showOver(sc) {
+  document.querySelector('#ov .osub').textContent = 'GAME OVER';
+  oScore.style.display = 'block';
+  oScore.textContent = sc;
+  startBtn.textContent = 'PLAY AGAIN';
+  ov.style.display = 'flex';
+}
+ 
+function startGame() {
+  ov.style.display = 'none';
+  if (raf) cancelAnimationFrame(raf);
+  gs = initState();
+  scoreEl.textContent = '0';
+  zoneEl.textContent  = 'ZONE 1';
+  zoneEl.style.color  = '#556';
+  zoneFlash = 0;
+  lastTime = 0;
+  rowsSinceLeftEdge = 0;
+  puBallTimer = PU_SPAWN_MIN + Math.random() * (PU_SPAWN_MAX - PU_SPAWN_MIN);
+  rowsSinceRightEdge = 0;
+  requestAnimationFrame(ts => { lastTime = ts; loop(ts); });
+}
+ 
+startBtn.addEventListener('click', startGame);
+</script>
+</body>
+</html>
